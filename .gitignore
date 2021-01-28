@@ -1,0 +1,6 @@
+dev
+*.pyc
+*.egg-info*
+*.dat
+*.bak
+*.ipynb_checkpoints
