@@ -31,6 +31,9 @@ def gaussian_layer(x):
     # Separate the parameters
     m, s = tf.unstack(x, num=2, axis=-1)
 
+    # If relu input
+    # m = tf.math.log(m+1e-10)
+
     # Add one dimension to make the right shape
     m = tf.expand_dims(m, -1)
     s = tf.expand_dims(s, -1)
@@ -71,7 +74,7 @@ def negative_gaussian_loss(y_true, y_pred):
     # Calculate the negative log likelihood
     nll = ( tf.math.log(s) + 0.5*(y_true-m)**2 / s**2 )
 
-    return nll
+    return nll# + 100*tf.math.log(s)
 
 def logit(x, xmin, xmax):
     """
