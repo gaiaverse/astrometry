@@ -5,7 +5,7 @@ from importscript import *
 import tqdm
 no_warnings()
 
-level=sys.argv[1]; nside=2**level; divisor=2**35 * 4**(12-7)
+level=sys.argv[1]; nside=2**level; divisor=2**35 * 4**(12-level)
 gwidth=0.1
 
 query = """select source_id/{0} as hpx,
