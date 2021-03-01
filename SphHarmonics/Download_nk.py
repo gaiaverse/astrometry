@@ -1,20 +1,22 @@
-import sys, pickle
-sys.path.append('/home/andy/Documents/Research/software/basecode/')
+import sys, os
+home = os.path.expanduser("~")
+sys.path.append(home+'/Documents/software/basecode/')
 from importscript import *
 
 import tqdm
 no_warnings()
 
-level=sys.argv[1]; nside=2**level; divisor=2**35 * 4**(12-7)
+level=int(sys.argv[1]); nside=pow(2, level); divisor=pow(2,35) * pow(4,12-7)
 gwidth=0.1
+print(level, nside, divisor)
 
 query = """select source_id/{0} as hpx,
-                  floor(phot_g_mean_mag/gwidth)*gwidth as magbin,
+                  floor(phot_g_mean_mag/{1})*{1} as magbin,
                   count(*) as n,
                   count(*) filter (where parallax is not Null) as k_ast,
                   count(*) filter (where dr2_radial_velocity is not Null) as k_rv
                 from gaia_edr3.gaia_source
-                group by hpx, magbin""".format(divisor)
+                group by hpx, magbin""".format(divisor,gwidth)
 _counts = sqlutilpy.get(query, asDict=True, **getdata.sql_args)
 
 ## Save data
