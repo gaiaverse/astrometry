@@ -6,7 +6,7 @@ from importscript import *
 import tqdm
 no_warnings()
 
-level=int(sys.argv[1]); nside=pow(2, level); divisor=pow(2,35) * pow(4,12-7)
+level=int(sys.argv[1]); nside=pow(2, level); divisor=pow(2,35) * pow(4,12-level)
 gwidth=0.1
 print(level, nside, divisor)
 
