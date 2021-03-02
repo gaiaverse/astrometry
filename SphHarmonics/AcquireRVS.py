@@ -14,8 +14,8 @@ N_block = 5231
 keys = ['source_id','phot_rp_mean_mag','bp_rp','dr2_radial_velocity']
 
 eps = 1e-10
-bins = {'rvs':np.array([-0.5,0.5,1.5]),'healpix':np.arange(-0.5,N_pixels),'phot_rp_mean_mag':np.arange(6.0,16.0+eps,0.1),'bp_rp':np.arange(0.0,3.0+eps,0.1)}
-bins_sizes = [bins[k].size-1 for k in ['rvs','healpix','phot_rp_mean_mag','bp_rp']]
+bins = {'rvs':np.array([-0.5,0.5,1.5]),'phot_rp_mean_mag':np.arange(6.0,16.0+eps,0.1),'bp_rp':np.arange(0.0,3.0+eps,0.1),'healpix':np.arange(-0.5,N_pixels)}
+bins_sizes = [bins[k].size-1 for k in ['rvs','phot_rp_mean_mag','bp_rp','healpix']]
 counts = np.zeros(bins_sizes,dtype=np.uint64)
 
 @njit
@@ -45,7 +45,7 @@ with h5py.File('./gaiaedr3.h5', 'r') as f:
         rvs_idx[np.isnan(rvs_idx) == True] = 0
         rvs_idx = rvs_idx.astype(np.int)
         
-        incrementer(counts,rvs_idx,healpix_idx,phot_rp_mean_mag_idx,bp_rp_idx)
+        incrementer(counts,rvs_idx,phot_rp_mean_mag_idx,bp_rp_idx,healpix_idx)
     
 # Find the most in any bins
 max_counts = np.max(counts)
@@ -59,9 +59,12 @@ elif max_counts < 18446744073709551616:
     counts_dtype = np.uint64
 
 with h5py.File('./rvs_grid.h5', 'w') as g:
+    
     for k,v in bins.items():
         g.create_dataset(k, data=v, dtype=np.float64)
-    g.create_dataset('counts', data=counts, compression="gzip", compression_opts=9, chunks = True, dtype = counts_dtype, fletcher32 = False, shuffle = True, scaleoffset=0)
+
+    g.create_dataset('k', data=counts[1].astype(int), compression="gzip", compression_opts=9, chunks = True, dtype = np.uint32, fletcher32 = False, shuffle = True, scaleoffset=0)
+    g.create_dataset('n', data=(counts[0]+counts[1]).astype(int), compression="gzip", compression_opts=9, chunks = True, dtype = np.uint32, fletcher32 = False, shuffle = True, scaleoffset=0)
 
                 
 
