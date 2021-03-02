@@ -39,6 +39,7 @@ hammer = Hammer(k = box['k'],
                 sigma = [1.32824171, -2.97102361],
                 file_root = f"lmax{lmax}_nside{nside}_M{M}_C{C}_l{lengthscale}",
                 )
+del box
 
 # Run hammer
 hammer.optimize(number_of_iterations = 10000)
