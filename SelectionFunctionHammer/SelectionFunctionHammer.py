@@ -197,8 +197,8 @@ class Hammer:
         elif callable(sigma):
             self.sigma = sigma(self._l,self._m)
         elif type(sigma) in [list,tuple]:
-            assert len(sigma) == 3
-            self.sigma = sigma[0]*(1.0+self._l)*np.power(sigma[1]+self._l,-sigma[2])
+            assert len(sigma) == 2
+            self.sigma = np.sqrt(sigma[0]*np.power(1.0+self._l,sigma[1]))
         else:
             self.sigma = sigma*np.ones(self.H)
             
