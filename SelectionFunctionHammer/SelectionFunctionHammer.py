@@ -172,6 +172,7 @@ class Hammer:
             _cholesky = np.linalg.cholesky(_covariance+1e-15*np.diag(np.ones(N)))
             
         _N_subspace = _cholesky.shape[1]
+        print(N,_N_subspace)
         
         return _N_subspace, _cholesky
     
