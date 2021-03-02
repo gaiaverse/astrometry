@@ -6,7 +6,7 @@ import os
 
 
 class Hammer:
-    def __init__(self, k, n, lmax, file_root = 'hammer', axes  = ['magnitude','colour','position'],lengthscale_m = 1.0, lengthscale_c = 1.0, M = None, C = None, nside = None, sparse = False, sparse_tol = 1e-4, pivot = False, pivot_tol = 1e-4, nest = True, mu = None, sigma = None, sigma_params = None, spherical_harmonics_directory='./SphericalHarmonics',stan_model_directory='./StanModels',stan_output_directory='./StanOutput'):
+    def __init__(self, k, n, lmax, file_root = 'hammer', axes  = ['magnitude','colour','position'],lengthscale_m = 1.0, lengthscale_c = 1.0, M = None, C = None, nside = None, sparse = False, sparse_tol = 1e-4, pivot = False, pivot_tol = 1e-4, nest = True, mu = None, sigma = None, spherical_harmonics_directory='./SphericalHarmonics',stan_model_directory='./StanModels',stan_output_directory='./StanOutput'):
         
         
         self.spherical_harmonics_directory = self._verify_directory(spherical_harmonics_directory)
@@ -39,7 +39,7 @@ class Hammer:
         self.C_subspace, self.cholesky_c = self._construct_cholesky_matrix(self.C,self.lengthscale_c)
         
         # Process mu and sigma
-        self._process_mu_and_sigma(mu,sigma,sigma_params)
+        self._process_mu_and_sigma(mu,sigma)
         
         # Load Stan Model
         self._load_stan_model()
@@ -175,7 +175,7 @@ class Hammer:
         
         return _N_subspace, _cholesky
     
-    def _process_mu_and_sigma(self,mu,sigma,sigma_params):
+    def _process_mu_and_sigma(self,mu,sigma):
         
         # Process mu
         if mu == None:
@@ -183,6 +183,8 @@ class Hammer:
         elif isinstance(mu, np.ndarray):
             assert mu.shape == (self.H,)
             self.mu = mu
+        elif callable(mu):
+            self.mu = mu(self._l,self._m)
         else:
             self.mu = mu*np.ones(self.H)
             
@@ -192,11 +194,15 @@ class Hammer:
         elif isinstance(sigma, np.ndarray):
             assert sigma.shape == (self.H,)
             self.sigma = sigma
-        elif sigma_params == None:
-            self.sigma = sigma*np.ones(self.H)
+        elif callable(sigma):
+            self.sigma = sigma(self._l,self._m)
+        elif type(sigma) in [list,tuple]:
+            assert len(sigma) == 3
+            self.sigma = sigma[0]*(1.0+self._l)*np.power(sigma[1]+self._l,-sigma[2])
         else:
-            assert len(sigma_params) == 3
-            self.sigma = sigma_params[0]*(1.0+self._l)*np.power(sigma_params[1]+self._l,-sigma_params[2])
+            self.sigma = sigma*np.ones(self.H)
+            
+            
     
     def _load_stan_model(self):
         

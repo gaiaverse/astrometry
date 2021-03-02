@@ -36,7 +36,7 @@ hammer = Hammer(k = box['k'],
                 sparse = True,
                 pivot = True,
                 mu = 0.0,
-                sigma_params = [1.0,1.0,1.5],
+                sigma = [1.0,1.0,1.5],
                 file_root = f"lmax{lmax}_nside{nside}_M{M}_C{C}_l{lengthscale}",
                 )
 
