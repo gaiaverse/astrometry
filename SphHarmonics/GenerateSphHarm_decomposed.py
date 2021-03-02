@@ -91,12 +91,12 @@ if __name__=='__main__':
 
     # Generate lambda
     _lambda = np.zeros((Nmodes, 4*nside-1))
-    if False: # From scipy
+    if True: # From scipy
         # For |m|>0 this comes out a factor of 2 smaller than the healpy version
         # For m<0 there's also a factor of (-1)^m difference
         for i,(_l,_m) in enumerate(zip(tqdm.tqdm(l),m)):
             _lambda[i] = (-1)**np.abs(_m) * np.real( scipy.special.sph_harm(np.abs(_m), _l, theta_ring*0., theta_ring) )
-    if True: # From healpy
+    else: # From healpy
         alm_hp = np.zeros(Nmodes_healpy)
         for i,(_l,_m) in enumerate(zip(tqdm.tqdm(l),m)):
             i_hp = hp.sphtfunc.Alm.getidx(lmax, _l, np.abs(_m))
@@ -111,6 +111,10 @@ if __name__=='__main__':
             map_hp /= np.exp(1.j*np.abs(_m)*phi)
             # Select unique latitude indices
             _lambda[i] = (-1)**np.abs(_m) * np.real(map_hp)[unique_idx]
+            
+            # Divide by 2
+            if _m != 0:
+                _lambda[i] /= 2.0
 
     # Generate Exponential
     azimuth = np.ones((2*lmax+1,Npix))
@@ -120,7 +124,7 @@ if __name__=='__main__':
         else: pass
 
     save_kwargs = {'compression':"lzf", 'chunks':True, 'fletcher32':False, 'shuffle':True}
-    with h5py.File('/data/asfe2/Projects/gaia_edr3/sphericalharmonics_decomposed_nside{0}_lmax{1}.h5'.format(nside,lmax), 'w') as f:
+    with h5py.File('./sphericalharmonics_decomposed_nside{0}_lmax{1}.h5'.format(nside,lmax), 'w') as f:
         # Create datasets
         f.create_dataset('lambda', data = _lambda, shape = (Nmodes, 4*nside-1,), dtype = np.float64, **save_kwargs)
         f.create_dataset('azimuth',data = azimuth, shape = (2*lmax+1, Npix, ),   dtype = np.float64, **save_kwargs)
