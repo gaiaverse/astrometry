@@ -1,6 +1,6 @@
-import sys, os
+import sys, pickle, os
 home = os.path.expanduser("~")
-sys.path.append(home+'/Documents/software/basecode/')
+sys.path.append(home+'/Documents/software')
 from importscript import *
 
 import tqdm
