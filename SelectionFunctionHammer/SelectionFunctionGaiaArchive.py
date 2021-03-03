@@ -36,9 +36,7 @@ class GaiaArchiveQuery:
         subquery_line = ', '.join([f"gaia_healpix_index({v['resolution']}, {v['column']}) as {k}" if k == 'position' else f"to_integer(floor({v['column']} * {int(1.0/v['resolution'])})) as {k}" for k,v in self.request.items()])
 
 
-        self.query = f"""select {select_line}, count(*) as n, sum(selection) as k
-                         from ( select {self.limit_results} {subquery_line}, {subset_line} from {self.gaia_version}.gaia_source 
-                         {superset_line} {self.random_results} ) as subquery group by {select_line}"""
+        self.query = f"""select {select_line}, count(*) as n, sum(selection) as k from ( select {self.limit_results} {subquery_line}, {subset_line} from {self.gaia_version}.gaia_source {superset_line} {self.random_results} ) as subquery group by {select_line}"""
         
     def run_query(self):
         from astroquery.gaia import Gaia
