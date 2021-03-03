@@ -1,5 +1,6 @@
 import sys, pickle
-sys.path.append('/home/andy/Documents/Research/software/basecode/')
+home = os.path.expanduser("~")
+sys.path.append(home+'/Documents/software')
 from importscript import *
 
 import tqdm

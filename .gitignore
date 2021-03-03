@@ -4,3 +4,5 @@ dev
 *.dat
 *.bak
 *.ipynb_checkpoints
+*/StanOutput/*
+*.h5
