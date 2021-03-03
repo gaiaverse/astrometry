@@ -64,11 +64,11 @@ class Hammer:
         _size_x = self.M*self.C*self.P
         _ring_indices = hp.nest2ring(self.nside, np.arange(self.P))
         self.optimum_lnp = _stan_optimum.optimized_params_np[0]
-        self.optimum_z = np.transpose(_stan_optimum.optimized_params_np[1:1+_size_z].reshape((self.C,self.M,self.H)))
+        self.optimum_z = np.transpose(_stan_optimum.optimized_params_np[1:1+_size_z].reshape((self.C_subspace,self.M_subspace,self.H)))
         if self.nest:
             self.optimum_x = self._ring_to_nest(np.transpose(_stan_optimum.optimized_params_np[1+_size_z:].reshape((self.P,self.C,self.M))))
         else:
-            self.optimum_x = np.transpose(_stan_optimum.optimized_params_np[1+_size_z:].reshape((P,C,M)))
+            self.optimum_x = np.transpose(_stan_optimum.optimized_params_np[1+_size_z:].reshape((self.P,self.C,self.M)))
         
         # Move convergence information somewhere useful
         import shutil
@@ -172,6 +172,7 @@ class Hammer:
             _cholesky = np.linalg.cholesky(_covariance+1e-15*np.diag(np.ones(N)))
             
         _N_subspace = _cholesky.shape[1]
+        print(N,_N_subspace)
         
         return _N_subspace, _cholesky
     
@@ -416,6 +417,3 @@ class Hammer:
             f.create_dataset('pixel_to_ring',   data = jpix,    shape = (Npix,),   dtype = np.uint32, scaleoffset=0, **save_kwargs)
             f.create_dataset('lower',   data = lower,    shape = (2*lmax+1,),   dtype = np.uint32, scaleoffset=0, **save_kwargs)
             f.create_dataset('upper',   data = upper,    shape = (2*lmax+1,),   dtype = np.uint32, scaleoffset=0, **save_kwargs)
-
-
-        
