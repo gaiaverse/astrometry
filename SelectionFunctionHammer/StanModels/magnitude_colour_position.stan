@@ -16,46 +16,55 @@ data {
     vector[H] sigma;                      // sigma of each harmonic
     int k[M,C,P];                         // number of heads
     int n[M,C,P];                         // number of flips
-    matrix[M,M] inv_cholesky_m; // Cholesky factor in magnitude space
-    matrix[C,C] inv_cholesky_c_T;     // Cholesky factor in colour space
+    row_vector[M_subspace] cholesky_m[M]; // Cholesky factor in magnitude space
+    vector[C_subspace] cholesky_c[C];     // Cholesky factor in colour space
 }
 parameters {
-    matrix[M,C] a[H];
+    matrix[M_subspace,C_subspace] z[H];
+}
+transformed parameters {
+
+    vector[P] x[M,C]; // Probability in logit-space
+    
+    { // Local environment to keep a and F out of the output
+        vector[H] a;
+        matrix[R,L] F;
+    
+        // Loop over magnitude and colour
+        for (m in 1:M){
+            for (c in 1:C){
+                
+                // Compute a
+                for (h in 1:H){
+                    a[h] = mu[h] + sigma[h] * cholesky_m[m] * z[h] * cholesky_c[c];
+                }
+                
+                // Compute F
+                for (l in 1:L) {
+                    F[:,l] = lambda[:,lower[l]:upper[l]] * a[lower[l]:upper[l]];
+                }
+                
+                // Compute x
+                for (p in 1:P){
+                    x[m,c,p] = dot_product(F[pixel_to_ring[p]],azimuth[:,p]);
+                }
+                
+            }  
+        }
+    }
 }
 model {
 
-    vector[H] log_prior;
-    //matrix[M,C] log_likelihood;
-
     // Prior
     for (h in 1:H){
-        log_prior[h] = sum(square(inv_cholesky_m * (a[h] - mu[h]) * inv_cholesky_c_T));
+        to_vector(z[h]) ~ std_normal();
     }
     
-    /*// Loop over magnitude and colour
+    // Likelihood
     for (m in 1:M){
         for (c in 1:C){
-
-            // Local variables
-            matrix[R,L] F;
-            vector[P] x; // Probability in logit-space
-            
-            // Compute F
-            for (l in 1:L) {
-                F[:,l] = lambda[:,lower[l]:upper[l]] * to_vector(a[lower[l]:upper[l],M,C]);
-            }
-            
-            // Compute x
-            for (p in 1:P){
-                x[p] = dot_product(F[pixel_to_ring[p]],azimuth[:,p]);
-            }
-
-            // Store log-likelihood
-            log_likelihood[m,c] = binomial_logit_lupmf( k[m,c] | n[m,c], x );
-            
-        }  
-    }*/
-
-    target += -0.5*sum(log_prior ./ sigma);// + sum(log_likelihood);
+            k[m,c] ~ binomial_logit(n[m,c], x[m,c]);
+        }
+    }
     
 }
