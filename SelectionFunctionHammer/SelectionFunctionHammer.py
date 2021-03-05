@@ -236,7 +236,10 @@ class Hammer:
                            'mu':self.mu,
                            'sigma':self.sigma}
 
-        if self.sparse:
+        if True:
+            self.stan_input['inv_cholesky_m'] = np.linalg.pinv(self.cholesky_m)
+            self.stan_input['inv_cholesky_c_T'] = np.linalg.pinv(self.cholesky_c).T
+        elif self.sparse:
             self.stan_input['cholesky_n_m'], self.stan_input['cholesky_w_m'], self.stan_input['cholesky_v_m'], self.stan_input['cholesky_u_m'] = self._sparsify(self.cholesky_m)
             self.stan_input['cholesky_n_c'], self.stan_input['cholesky_w_c'], self.stan_input['cholesky_v_c'], self.stan_input['cholesky_u_c'] = self._sparsify(self.cholesky_c)
         else:
