@@ -54,6 +54,8 @@ transformed parameters {
     }
 }
 model {
+    
+    real log_likelihood[M,C];
 
     // Prior
     for (h in 1:H){
@@ -63,8 +65,10 @@ model {
     // Likelihood
     for (m in 1:M){
         for (c in 1:C){
-            k[m,c] ~ binomial_logit(n[m,c], x[m,c]);
+            log_likelihood[m,c] = binomial_logit_pmf( k[m,c] | n[m,c], x[m,c] );
         }
     }
+
+    target += sum(log_likelihood);
     
 }
