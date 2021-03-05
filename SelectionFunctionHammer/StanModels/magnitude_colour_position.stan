@@ -25,14 +25,14 @@ parameters {
 model {
 
     vector[H] log_prior;
-    matrix[M,C] log_likelihood;
+    //matrix[M,C] log_likelihood;
 
     // Prior
     for (h in 1:H){
         log_prior[h] = sum(square(inv_cholesky_m * (a[h] - mu[h]) * inv_cholesky_c_T));
     }
     
-    // Loop over magnitude and colour
+    /*// Loop over magnitude and colour
     for (m in 1:M){
         for (c in 1:C){
 
@@ -54,8 +54,8 @@ model {
             log_likelihood[m,c] = binomial_logit_lupmf( k[m,c] | n[m,c], x );
             
         }  
-    }
+    }*/
 
-    target += -0.5*sum(log_prior ./ sigma) + sum(log_likelihood);
+    target += -0.5*sum(log_prior ./ sigma);// + sum(log_likelihood);
     
 }
