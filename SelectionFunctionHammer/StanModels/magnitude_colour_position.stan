@@ -42,7 +42,7 @@ model {
             
             // Compute F
             for (l in 1:L) {
-                F[:,l] = lambda[:,lower[l]:upper[l]] * a[lower[l]:upper[l],M,C];
+                F[:,l] = lambda[:,lower[l]:upper[l]] * to_vector(a[lower[l]:upper[l],M,C]);
             }
             
             // Compute x
