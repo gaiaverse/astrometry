@@ -29,7 +29,7 @@ model {
 
     // Prior
     for (h in 1:H){
-        log_prior[h] = inv_cholesky_m * (a[h] - mu[h]) * inv_cholesky_c_T;
+        log_prior[h] = sum(square(inv_cholesky_m * (a[h] - mu[h]) * inv_cholesky_c_T));
     }
     
     // Loop over magnitude and colour
