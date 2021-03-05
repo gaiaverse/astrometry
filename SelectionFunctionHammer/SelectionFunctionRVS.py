@@ -7,6 +7,9 @@ nside = int(sys.argv[2])
 M = int(sys.argv[3])
 C = int(sys.argv[4])
 lengthscale = float(sys.argv[5]) # in units of magnitudes
+if len(sys.argv) > 6:
+    sparse = True if sys.argv[6] == 'yes' else False
+    pivot = True if sys.argv[7] == 'yes' else False
 
 # Load in data and format
 with h5py.File('./rvs_grid.h5', 'r') as g:
