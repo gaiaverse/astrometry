@@ -61,20 +61,21 @@ transformed parameters {
 }
 model {
     
+    vector[H] log_prior;
     matrix[M,C] log_likelihood;
 
     // Prior
     for (h in 1:H){
-        to_vector(z[h]) ~ std_normal();
+        log_prior[h] = std_normal_lupdf(to_vector(z[h]));
     }
     
     // Likelihood
     for (m in 1:M){
         for (c in 1:C){
-            log_likelihood[m,c] = binomial_logit_lpmf( k[m,c] | n[m,c], x[m,c] );
+            log_likelihood[m,c] = binomial_logit_lupmf( k[m,c] | n[m,c], x[m,c] );
         }
     }
 
-    target += sum(log_likelihood);
+    target += sum(log_prior) + sum(log_likelihood);
     
 }
