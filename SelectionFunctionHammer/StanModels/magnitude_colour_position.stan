@@ -26,31 +26,30 @@ transformed parameters {
 
     vector[P] x[M,C]; // Probability in logit-space
     
-    { // Local environment to keep a and F out of the output
-        vector[H] a;
-        matrix[R,L] F;
-    
-        // Loop over magnitude and colour
-        for (m in 1:M){
-            for (c in 1:C){
-                
-                // Compute a
-                for (h in 1:H){
-                    a[h] = mu[h] + sigma[h] * cholesky_m[m] * z[h] * cholesky_c[c];
-                }
-                
-                // Compute F
-                for (l in 1:L) {
-                    F[:,l] = lambda[:,lower[l]:upper[l]] * a[lower[l]:upper[l]];
-                }
-                
-                // Compute x
-                for (p in 1:P){
-                    x[m,c,p] = dot_product(F[pixel_to_ring[p]],azimuth[:,p]);
-                }
-                
-            }  
-        }
+    // Loop over magnitude and colour
+    for (m in 1:M){
+        for (c in 1:C){
+
+            // Local variables
+            vector[H] a;
+            matrix[R,L] F;
+            
+            // Compute a
+            for (h in 1:H){
+                a[h] = mu[h] + sigma[h] * cholesky_m[m] * z[h] * cholesky_c[c];
+            }
+            
+            // Compute F
+            for (l in 1:L) {
+                F[:,l] = lambda[:,lower[l]:upper[l]] * a[lower[l]:upper[l]];
+            }
+            
+            // Compute x
+            for (p in 1:P){
+                x[m,c,p] = dot_product(F[pixel_to_ring[p]],azimuth[:,p]);
+            }
+            
+        }  
     }
 }
 model {
