@@ -16,11 +16,11 @@ data {
     vector[H] sigma;                      // sigma of each harmonic
     int k[M,C,P];                         // number of heads
     int n[M,C,P];                         // number of flips
-    row_vector[M_subspace] cholesky_m[M]; // Cholesky factor in magnitude space
-    vector[C_subspace] cholesky_c[C];     // Cholesky factor in colour space
+    matrix[M,M] inv_cholesky_m; // Cholesky factor in magnitude space
+    matrix[C,C] inv_cholesky_c_T;     // Cholesky factor in colour space
 }
 parameters {
-    matrix[M_subspace,C_subspace] z[H];
+    matrix[M,C] a[H];
 }
 model {
 
@@ -29,7 +29,7 @@ model {
 
     // Prior
     for (h in 1:H){
-        log_prior[h] = std_normal_lupdf(to_vector(z[h]));
+        log_prior[h] = inv_cholesky_m * (a[h] - mu[h]) * inv_cholesky_c_T;
     }
     
     // Loop over magnitude and colour
@@ -37,18 +37,12 @@ model {
         for (c in 1:C){
 
             // Local variables
-            vector[H] a;
             matrix[R,L] F;
             vector[P] x; // Probability in logit-space
             
-            // Compute a 
-            for (h in 1:H){
-                a[h] = mu[h] + sigma[h] * cholesky_m[m] * z[h] * cholesky_c[c];
-            }
-            
             // Compute F
             for (l in 1:L) {
-                F[:,l] = lambda[:,lower[l]:upper[l]] * a[lower[l]:upper[l]];
+                F[:,l] = lambda[:,lower[l]:upper[l]] * a[lower[l]:upper[l],M,C];
             }
             
             // Compute x
@@ -62,6 +56,6 @@ model {
         }  
     }
 
-    target += sum(log_prior) + sum(log_likelihood);
+    target += -0.5*sum(log_prior ./ sigma) + sum(log_likelihood);
     
 }
