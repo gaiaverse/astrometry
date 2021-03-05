@@ -55,7 +55,7 @@ transformed parameters {
 }
 model {
 
-    real log_likelihood[M,C];
+    matrix[M,C] log_likelihood;
 
     // Prior
     for (h in 1:H){
