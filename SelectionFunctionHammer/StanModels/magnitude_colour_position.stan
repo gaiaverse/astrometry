@@ -4,14 +4,8 @@ data {
     int<lower=0> M_subspace;              // number of inducing points in magnitude space
     int<lower=0> C;                       // number of bins in colour space
     int<lower=0> C_subspace;              // number of inducing points in colour space
-    int<lower=0> L;                       // 2 * max l of hamonics + 1
     int<lower=0> H;                       // number of harmonics
-    int<lower=0> R;                       // number of HEALPix isolatitude rings
-    matrix[R,H] lambda;                   // spherical harmonics decomposed
-    matrix[L,P] azimuth;                  // spherical harmonics decomposed
-    int pixel_to_ring[P];                 // map P->R
-    int lower[L];                         // map H->L
-    int upper[L];                         // map H->L
+    matrix[P,H] harmonic_to_pixel;        // spherical harmonics
     vector[H] mu;                         // mean of each harmonic
     vector[H] sigma;                      // sigma of each harmonic
     int k[M,C,P];                         // number of heads
@@ -26,32 +20,24 @@ transformed parameters {
 
     vector[P] x[M,C]; // Probability in logit-space
     
-    { // Local environment to keep a and F out of the output
-        vector[H] a;
-        matrix[R,L] F;
-    
-        // Loop over magnitude and colour
-        for (m in 1:M){
-            for (c in 1:C){
-                
-                // Compute a
-                for (h in 1:H){
-                    a[h] = mu[h] + sigma[h] * cholesky_m[m] * z[h] * cholesky_c[c];
-                }
-                
-                // Compute F
-                for (l in 1:L) {
-                    F[:,l] = lambda[:,lower[l]:upper[l]] * a[lower[l]:upper[l]];
-                }
-                
-                // Compute x
-                for (p in 1:P){
-                    x[m,c,p] = dot_product(F[pixel_to_ring[p]],azimuth[:,p]);
-                }
-                
-            }  
-        }
+    // Loop over magnitude and colour
+    for (m in 1:M){
+        for (c in 1:C){
+
+            // Local variable
+            vector[H] a;
+            
+            // Compute a 
+            for (h in 1:H){
+                a[h] = mu[h] + sigma[h] * cholesky_m[m] * z[h] * cholesky_c[c];
+            }
+            
+            // Compute x
+            x[m,c] = harmonic_to_pixel * a;
+            
+        }  
     }
+
 }
 model {
 
