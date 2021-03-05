@@ -219,7 +219,7 @@ class Hammer:
     def _construct_stan_input(self):
 
         # Construct Y
-        harmonic_to_pixel = self._azimuth[self._m,:].T * self._lambda[self._pixel_to_ring,:]
+        _harmonic_to_pixel = self._azimuth[self._m,:].T * self._lambda[self._pixel_to_ring,:]
 
 
         self.stan_input = {'k':self.k,
@@ -230,7 +230,7 @@ class Hammer:
                            'C':self.C,
                            'C_subspace':self.C_subspace,
                            'H':self.H,
-                           'harmonic_to_pixel':self._harmonic_to_pixel,
+                           'harmonic_to_pixel':_harmonic_to_pixel,
                            'mu':self.mu,
                            'sigma':self.sigma}
 
