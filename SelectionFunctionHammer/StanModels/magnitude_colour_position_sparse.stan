@@ -28,10 +28,16 @@ data {
 parameters {
     matrix[M_subspace,C_subspace] z[H];
 }
-transformed parameters {
-
-    vector[P] x[M,C]; // Probability in logit-space
+model {
     
+    vector[H] log_prior;
+    matrix[M,C] log_likelihood;
+
+    // Prior
+    for (h in 1:H){
+        log_prior[h] = std_normal_lupdf(to_vector(z[h]));
+    }
+
     // Loop over magnitude and colour
     for (m in 1:M){
         for (c in 1:C){
@@ -39,6 +45,7 @@ transformed parameters {
             // Local variables
             vector[H] a;
             matrix[R,L] F;
+            vector[P] x; // Probability in logit-space
             
             // Compute a 
             for (h in 1:H){
@@ -52,27 +59,13 @@ transformed parameters {
             
             // Compute x
             for (p in 1:P){
-                x[m,c,p] = dot_product(F[pixel_to_ring[p]],azimuth[:,p]);
+                x[p] = dot_product(F[pixel_to_ring[p]],azimuth[:,p]);
             }
+
+            // Store log-likelihood
+            log_likelihood[m,c] = binomial_logit_lupmf( k[m,c] | n[m,c], x );
             
         }  
-    }
-}
-model {
-    
-    vector[H] log_prior;
-    matrix[M,C] log_likelihood;
-
-    // Prior
-    for (h in 1:H){
-        log_prior[h] = std_normal_lupdf(to_vector(z[h]));
-    }
-    
-    // Likelihood
-    for (m in 1:M){
-        for (c in 1:C){
-            log_likelihood[m,c] = binomial_logit_lupmf( k[m,c] | n[m,c], x[m,c] );
-        }
     }
 
     target += sum(log_prior) + sum(log_likelihood);
