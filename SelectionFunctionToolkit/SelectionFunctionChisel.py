@@ -217,20 +217,12 @@ class Chisel:
         elif type(sigma) in [list,tuple]:
             assert len(sigma) == 2
             power_spectrum = lambda l: np.sqrt(np.exp(sigma[0])*np.power(1.0+l,sigma[1]))
-<<<<<<< HEAD
 
-=======
-            
->>>>>>> 609cd0321f9491cd5127c15cfc10d49c31f50e25
             from SelectionFunctionUtils import littlewoodpaley
             lwp = littlewoodpaley()
             _sigma = np.zeros(self.jmax+1)
             for j in range(self.jmax+1):
-<<<<<<< HEAD
 
-=======
-                
->>>>>>> 609cd0321f9491cd5127c15cfc10d49c31f50e25
                 nside_needle = self.order_to_nside(j)
                 npix_needle = self.nside_to_npix(nside_needle)
 
@@ -238,15 +230,9 @@ class Chisel:
                 end = int(np.ceil(self.B**(j+1)))
                 modes = np.arange(start, end + 1, dtype = 'float')
                 window = lwp.window_function(modes / (self.B**j), self.B)**2*power_spectrum(modes)*(2.0*modes+1.0)/npix_needle
-<<<<<<< HEAD
 
                 _sigma[j] = np.sqrt(window.sum())
 
-=======
-                
-                _sigma[j] = np.sqrt(window.sum())
-                
->>>>>>> 609cd0321f9491cd5127c15cfc10d49c31f50e25
             self.sigma = np.array([_sigma[j] for j in self._wavelet_j])
         else:
             self.sigma = sigma*np.ones(self.S)
@@ -392,11 +378,6 @@ class Chisel:
         return A[:,:,_reordering]
 
     def _generate_spherical_wavelets(self,gsw_file):
-<<<<<<< HEAD
-
-=======
-        
->>>>>>> 609cd0321f9491cd5127c15cfc10d49c31f50e25
         # Import dependencies
         from numba import njit
         from math import sin, cos
@@ -462,11 +443,7 @@ class Chisel:
                 needlet_v.append(_significant)
                 needlet_u.append(running_index)
                 running_index += _significant.size
-<<<<<<< HEAD
 
-=======
-        
->>>>>>> 609cd0321f9491cd5127c15cfc10d49c31f50e25
         # Add the ending index to u
         needlet_u.append(running_index)
 
@@ -474,11 +451,7 @@ class Chisel:
         needlet_w = np.concatenate(needlet_w)
         needlet_v = np.concatenate(needlet_v)
         needlet_u = np.array(needlet_u)
-<<<<<<< HEAD
 
-=======
-        
->>>>>>> 609cd0321f9491cd5127c15cfc10d49c31f50e25
         # Flip them round
         from scipy import sparse
         Y = sparse.csr_matrix((needlet_w,needlet_v,needlet_u)).transpose().tocsr()
