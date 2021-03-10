@@ -5,4 +5,6 @@ dev
 *.bak
 *.ipynb_checkpoints
 */StanOutput/*
+*/StanModels/*
+!*/StanModels/*.stan
 *.h5
