@@ -6,7 +6,7 @@ import os
 
 
 class Hammer:
-    def __init__(self, k, n, lmax, file_root = 'hammer', axes  = ['magnitude','colour','position'],lengthscale_m = 1.0, lengthscale_c = 1.0, M = None, C = None, nside = None, sparse = False, sparse_tol = 1e-4, pivot = False, pivot_tol = 1e-4, nest = True, mu = None, sigma = None, spherical_harmonics_directory='./SphericalHarmonics',stan_model_directory='./StanModels',stan_output_directory='./StanOutput'):
+    def __init__(self, k, n, lmax, file_root = 'hammer', axes  = ['magnitude','colour','position'],lengthscale_m = 1.0, lengthscale_c = 1.0, M = None, C = None, nside = None, Mlim=[-1000,1000], Clim=[-1000,1000], sparse = False, sparse_tol = 1e-4, pivot = False, pivot_tol = 1e-4, nest = True, mu = None, sigma = None, spherical_harmonics_directory='./SphericalHarmonics',stan_model_directory='./StanModels',stan_output_directory='./StanOutput'):
 
 
         self.spherical_harmonics_directory = self._verify_directory(spherical_harmonics_directory)
@@ -19,6 +19,9 @@ class Hammer:
         self.pivot = pivot
         self.pivot_tol = pivot_tol
         self.nest = nest
+
+        self.Mlim = Mlim
+        self.Clim = Clim
 
         # Reshape k and n to be valid
         self._reshape_k_and_n(k,n,axes)
@@ -85,6 +88,8 @@ class Hammer:
             orf.create_dataset('z', data = self.optimum_z, dtype = np.float64, compression = 'lzf', chunks = True)
             orf.create_dataset('a', data = self.optimum_a, dtype = np.float64, compression = 'lzf', chunks = True)
             orf.create_dataset('x', data = self.optimum_x, dtype = np.float64, compression = 'lzf', chunks = True)
+            orf.create_dataset('Mlim', data = self.Mlim, dtype = np.float64)
+            orf.create_dataset('Clim', data = self.Clim, dtype = np.float64)
         print(f'Optimum values stored in {self.stan_output_directory + self.optimum_results_file}')
 
     def print_convergence(self, number_of_lines = 2):
@@ -133,6 +138,7 @@ class Hammer:
             self.P = hp.nside2npix(self.nside)
 
         _downgrade = lambda A: A.reshape(self.M, self.M_original//self.M, self.C, self.C_original//self.C, self.P, self.P_original//self.P).sum(axis=(1,3,5))
+        print(self.k_original.shape)
 
         if self.nest:
             self.k = self._nest_to_ring(_downgrade(self.k_original))
