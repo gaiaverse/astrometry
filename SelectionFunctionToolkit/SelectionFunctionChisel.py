@@ -7,8 +7,6 @@ import os
 
 class Chisel:
 
-
-
     def __init__(self, k, n, jmax, B = 2.0, wavelet_tol = 1e-4, file_root = 'chisel', axes  = ['magnitude','colour','position'],lengthscale_m = 1.0, lengthscale_c = 1.0, M = None, C = None, Mlim=[-1000,1000], Clim=[-1000,1000], nside = None, sparse = False, sparse_tol = 1e-4, pivot = False, pivot_tol = 1e-4, nest = True, mu = None, sigma = None, spherical_wavelets_directory='./SphericalWavelets',stan_model_directory='./StanModels',stan_output_directory='./StanOutput'):
 
         # Utilities
@@ -99,8 +97,10 @@ class Chisel:
             orf.create_dataset('z', data = self.optimum_z, dtype = np.float64, compression = 'lzf', chunks = True)
             orf.create_dataset('b', data = self.optimum_b, dtype = np.float64, compression = 'lzf', chunks = True)
             orf.create_dataset('x', data = self.optimum_x, dtype = np.float64, compression = 'lzf', chunks = True)
+
             orf.create_dataset('Mlim', data = self.Mlim, dtype = np.float64)
             orf.create_dataset('Clim', data = self.Clim, dtype = np.float64)
+
         print(f'Optimum values stored in {self.stan_output_directory + self.optimum_results_file}')
 
     def print_convergence(self, number_of_lines = 2):
@@ -217,12 +217,20 @@ class Chisel:
         elif type(sigma) in [list,tuple]:
             assert len(sigma) == 2
             power_spectrum = lambda l: np.sqrt(np.exp(sigma[0])*np.power(1.0+l,sigma[1]))
+<<<<<<< HEAD
 
+=======
+            
+>>>>>>> 609cd0321f9491cd5127c15cfc10d49c31f50e25
             from SelectionFunctionUtils import littlewoodpaley
             lwp = littlewoodpaley()
             _sigma = np.zeros(self.jmax+1)
             for j in range(self.jmax+1):
+<<<<<<< HEAD
 
+=======
+                
+>>>>>>> 609cd0321f9491cd5127c15cfc10d49c31f50e25
                 nside_needle = self.order_to_nside(j)
                 npix_needle = self.nside_to_npix(nside_needle)
 
@@ -230,9 +238,15 @@ class Chisel:
                 end = int(np.ceil(self.B**(j+1)))
                 modes = np.arange(start, end + 1, dtype = 'float')
                 window = lwp.window_function(modes / (self.B**j), self.B)**2*power_spectrum(modes)*(2.0*modes+1.0)/npix_needle
+<<<<<<< HEAD
 
                 _sigma[j] = np.sqrt(window.sum())
 
+=======
+                
+                _sigma[j] = np.sqrt(window.sum())
+                
+>>>>>>> 609cd0321f9491cd5127c15cfc10d49c31f50e25
             self.sigma = np.array([_sigma[j] for j in self._wavelet_j])
         else:
             self.sigma = sigma*np.ones(self.S)
@@ -378,7 +392,11 @@ class Chisel:
         return A[:,:,_reordering]
 
     def _generate_spherical_wavelets(self,gsw_file):
+<<<<<<< HEAD
 
+=======
+        
+>>>>>>> 609cd0321f9491cd5127c15cfc10d49c31f50e25
         # Import dependencies
         from numba import njit
         from math import sin, cos
@@ -444,7 +462,11 @@ class Chisel:
                 needlet_v.append(_significant)
                 needlet_u.append(running_index)
                 running_index += _significant.size
+<<<<<<< HEAD
 
+=======
+        
+>>>>>>> 609cd0321f9491cd5127c15cfc10d49c31f50e25
         # Add the ending index to u
         needlet_u.append(running_index)
 
@@ -452,7 +474,11 @@ class Chisel:
         needlet_w = np.concatenate(needlet_w)
         needlet_v = np.concatenate(needlet_v)
         needlet_u = np.array(needlet_u)
+<<<<<<< HEAD
 
+=======
+        
+>>>>>>> 609cd0321f9491cd5127c15cfc10d49c31f50e25
         # Flip them round
         from scipy import sparse
         Y = sparse.csr_matrix((needlet_w,needlet_v,needlet_u)).transpose().tocsr()
