@@ -4,7 +4,7 @@ data {
     int<lower=0> M_subspace;              // number of inducing points in magnitude space
     int<lower=0> C;                       // number of bins in colour space
     int<lower=0> C_subspace;              // number of inducing points in colour space
-    int<lower=0> S;                       // number of harmonics
+    int<lower=0> S;                       // number of wavelets
     int wavelet_n;                        // sparse wavelets - number of nonzero elements
     vector[wavelet_n] wavelet_w;          // sparse wavelets - nonzero elements
     int wavelet_v[wavelet_n];             // sparse wavelets - columns of nonzero elements
@@ -35,7 +35,7 @@ transformed parameters {
             
             // Local variable
             vector[S] b;
-                
+               
             // Compute b
             for (s in 1:S){
                 b[s] = mu[s] + sigma[s] * (cholesky_w_m[cholesky_u_m[m]:cholesky_u_m[m+1]-1] * z[s,cholesky_v_m[cholesky_u_m[m]:cholesky_u_m[m+1]-1], cholesky_v_c[cholesky_u_c[c]:cholesky_u_c[c+1]-1]] * cholesky_w_c[cholesky_u_c[c]:cholesky_u_c[c+1]-1]);
@@ -43,7 +43,6 @@ transformed parameters {
                 
             // Compute x
             x[m,c] = csr_matrix_times_vector(P, S, wavelet_w, wavelet_v, wavelet_u, b);
-
         }  
     }
     
