@@ -37,7 +37,7 @@ class Base:
         self.lengthscale_c = lengthscale_c
         
         # Process basis-specific options
-        self._process_basis_options(basis_options)
+        self._process_basis_options(**basis_options)
         
         # Load spherical basis
         self._load_spherical_basis()
@@ -157,6 +157,8 @@ class Base:
 
     def _load_spherical_basis(self):
         """ Loads in the spherical basis file. If they don't exist, then generate them. The generator must be implemented in each child class. """
+        
+        _spherical_basis_files = self.spherical_basis_file
         
         if not os.path.isfile(self.spherical_basis_directory + self.spherical_basis_file):
             print('Spherical basis file does not exist, generating... (this may take some time!)')
