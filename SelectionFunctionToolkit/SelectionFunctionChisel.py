@@ -4,61 +4,63 @@ import tqdm
 import h5py
 from SelectionFunctionBase import Base
 
+
 class Chisel(Base):
-    
+
     basis_keyword = 'wavelet'
-        
+
     def _process_basis_options(self, needlet = 'littlewoodpaley', j=[0], B = 2.0, p = 1.0, wavelet_tol = 1e-10):
-        
+
         if type(j) in [list,tuple,np.ndarray]:
             self.j = sorted([int(_j) for _j in j])
+
         else:
             self.j = [_j for _j in range(j+1)]
-        
+
         self.needlet, self.B, self.p, self.wavelet_tol = needlet, B, p, wavelet_tol
-        
+
         self.spherical_basis_file = f"{self.basis_keyword}_{self.needlet}_nside{self.nside}_B{self.B}_"+ (f"p{self.p}_" if self.needlet == 'chisquare' else '') + f"tol{self.wavelet_tol}_j[{','.join([str(_i) for _i in self.j])}].h5"
-        
+
         assert self.B > 1.0
         assert self.wavelet_tol >= 0.0
         assert self.needlet in ['littlewoodpaley','chisquare']
         self.S = sum([self.order_to_npix(_j) if _j >= 0 else 1 for _j in self.j])
-        
+
         if self.needlet == 'chisquare':
             from SelectionFunctionUtils import chisquare
             self.weighting = chisquare(self.j, p = self.p, B = self.B)
         else:
             from SelectionFunctionUtils import littlewoodpaley
             self.weighting = littlewoodpaley(B = self.B)
-        
-            
+
+
     def _process_sigma_basis_specific(self,sigma):
         assert len(sigma) == 2
         power_spectrum = lambda l: np.sqrt(np.exp(sigma[0])*np.power(1.0+l,sigma[1]))
-            
+
         _sigma = np.zeros(self.S)
         running_index = 0
         for j in self.j:
-            
+
             if j == -1:
                 _sigma[running_index] = 1.0
                 running_index += 1
                 continue
-                
+
             npix_needle = self.order_to_npix(j)
 
             start = self.weighting.start(j)
             end = self.weighting.end(j)
             modes = np.arange(start, end + 1, dtype = 'float')
             window = self.weighting.window_function(modes,j)**2*power_spectrum(modes)*(2.0*modes+1.0)/npix_needle
-                
+
             _sigma[running_index:running_index+npix_needle] = np.sqrt(window.sum())
             running_index += npix_needle
-            
+
         return _sigma
 
     def _generate_spherical_basis(self,gsb_file):
-        
+
         # Import dependencies
         from numba import njit
         from math import sin, cos
@@ -95,7 +97,7 @@ class Chisel(Base):
         for j in self.j:
 
             print(f'Working on order {j}.')
-            
+
             if j == -1:
                 needlet_w.append(np.ones(npix))
                 needlet_v.append(np.arange(npix))
@@ -126,7 +128,7 @@ class Chisel(Base):
                 needlet_u.append(running_index)
                 needlet_j.append(j*np.ones(self.order_to_npix(j)))
                 running_index += _significant.size
-        
+
         # Add the ending index to u
         needlet_u.append(running_index)
 
@@ -134,7 +136,7 @@ class Chisel(Base):
         needlet_w = np.concatenate(needlet_w)
         needlet_v = np.concatenate(needlet_v)
         needlet_u = np.array(needlet_u)
-        
+
         # Flip them round
         from scipy import sparse
         Y = sparse.csr_matrix((needlet_w,needlet_v,needlet_u)).transpose().tocsr()
@@ -150,4 +152,3 @@ class Chisel(Base):
             f.create_dataset('wavelet_u', data = wavelet_u, dtype = np.uint64, scaleoffset=0, **save_kwargs)
             f.create_dataset('wavelet_n', data = wavelet_n)
             f.create_dataset('modes', data = wavelet_j, dtype = np.uint64, scaleoffset=0, **save_kwargs)
-            
