@@ -5,15 +5,21 @@ import h5py
 import os
 
 
-class Hammer:
-    def __init__(self, k, n, lmax, file_root = 'hammer', axes  = ['magnitude','colour','position'],lengthscale_m = 1.0, lengthscale_c = 1.0, M = None, C = None, nside = None, Mlim=[-1000,1000], Clim=[-1000,1000], sparse = False, sparse_tol = 1e-4, pivot = False, pivot_tol = 1e-4, nest = True, mu = None, sigma = None, spherical_harmonics_directory='./SphericalHarmonics',stan_model_directory='./StanModels',stan_output_directory='./StanOutput'):
+class Base:
 
+    basis_keyword = 'base' # This must be changed in each file.
 
-        self.spherical_harmonics_directory = self._verify_directory(spherical_harmonics_directory)
+    def __init__(self, k, n, basis_options, file_root, axes  = ['magnitude','colour','position'], lengthscale_m = 1.0, lengthscale_c = 1.0, M = None, C = None, nside = None, sparse = False, sparse_tol = 1e-4, pivot = False, pivot_tol = 1e-4, nest = True, mu = None, sigma = None, spherical_basis_directory='./SphericalBasis',stan_model_directory='./StanModels',stan_output_directory='./StanOutput'):
+
+        # Utilities
+        self.order_to_nside = lambda order: 2**order
+        self.nside_to_npix = lambda nside: 12*nside**2
+        self.order_to_npix = lambda order: self.nside_to_npix(self.order_to_nside(order))
+
+        self.spherical_basis_directory = self._verify_directory(spherical_basis_directory)
         self.stan_model_directory = self._verify_directory(stan_model_directory)
         self.stan_output_directory = self._verify_directory(stan_output_directory)
 
-        self.lmax = lmax
         self.sparse = sparse
         self.sparse_tol = sparse_tol
         self.pivot = pivot
@@ -32,17 +38,20 @@ class Hammer:
         # These must both be in units of bins!
         self.lengthscale_m = lengthscale_m
         self.lengthscale_c = lengthscale_c
-        self.L, self.H, self.R = 2 * self.lmax + 1, (self.lmax + 1) ** 2, 4 * self.nside - 1
 
-        # Load spherical harmonics
-        self._load_spherical_harmonics()
+        # Process basis-specific options
+        self._process_basis_options(**basis_options)
+
+        # Load spherical basis
+        self._load_spherical_basis()
 
         # Compute cholesky matrices
         self.M_subspace, self.cholesky_m = self._construct_cholesky_matrix(self.M,self.lengthscale_m)
         self.C_subspace, self.cholesky_c = self._construct_cholesky_matrix(self.C,self.lengthscale_c)
 
         # Process mu and sigma
-        self._process_mu_and_sigma(mu,sigma)
+        self._process_mu(mu)
+        self._process_sigma(sigma)
 
         # Load Stan Model
         self._load_stan_model()
@@ -53,26 +62,26 @@ class Hammer:
         # File root
         self.file_root = file_root
 
-    def optimize(self, number_of_iterations = 1000):
+    def optimize(self, number_of_iterations = 1000, inits = 2):
 
         import time
         print('Running optimisation')
         t1 = time.time()
-        _stan_optimum = self.stan_model.optimize(data = self.stan_input, iter = number_of_iterations, output_dir = self.stan_output_directory)
+        _stan_optimum = self.stan_model.optimize(data = self.stan_input, iter = number_of_iterations, output_dir = self.stan_output_directory, inits = inits)
         t2 = time.time()
         print(f'Finished optimisation, it took {t2-t1:.1f} seconds')
 
         # Extract maxima
-        _size_z = self.H*self.M_subspace*self.C_subspace
+        _size_z = self.S*self.M_subspace*self.C_subspace
         _size_x = self.M*self.C*self.P
         _ring_indices = hp.nest2ring(self.nside, np.arange(self.P))
         self.optimum_lnp = _stan_optimum.optimized_params_np[0]
-        self.optimum_z = np.transpose(_stan_optimum.optimized_params_np[1:1+_size_z].reshape((self.C_subspace,self.M_subspace,self.H)))
+        self.optimum_z = np.transpose(_stan_optimum.optimized_params_np[1:1+_size_z].reshape((self.C_subspace,self.M_subspace,self.S)))
         if self.nest:
             self.optimum_x = self._ring_to_nest(np.transpose(_stan_optimum.optimized_params_np[1+_size_z:].reshape((self.P,self.C,self.M))))
         else:
             self.optimum_x = np.transpose(_stan_optimum.optimized_params_np[1+_size_z:].reshape((self.P,self.C,self.M)))
-        self.optimum_a = self.stan_input['mu'][:,None,None] + self.stan_input['sigma'][:,None,None] * (self.cholesky_m @ self.optimum_z @ self.cholesky_c.T)
+        self.optimum_b = self.stan_input['mu'][:,None,None] + self.stan_input['sigma'][:,None,None] * (self.cholesky_m @ self.optimum_z @ self.cholesky_c.T)
 
         # Move convergence information somewhere useful
         import shutil
@@ -86,7 +95,7 @@ class Hammer:
             orf.create_dataset('opt_runtime', data = t2-t1)
             orf.create_dataset('lnP', data = self.optimum_lnp)
             orf.create_dataset('z', data = self.optimum_z, dtype = np.float64, compression = 'lzf', chunks = True)
-            orf.create_dataset('a', data = self.optimum_a, dtype = np.float64, compression = 'lzf', chunks = True)
+            orf.create_dataset('b', data = self.optimum_b, dtype = np.float64, compression = 'lzf', chunks = True)
             orf.create_dataset('x', data = self.optimum_x, dtype = np.float64, compression = 'lzf', chunks = True)
             orf.create_dataset('Mlim', data = self.Mlim, dtype = np.float64)
             orf.create_dataset('Clim', data = self.Clim, dtype = np.float64)
@@ -107,6 +116,9 @@ class Hammer:
             _directory = _directory + '/'
 
         return _directory
+
+    def _process_basis_options(self,options):
+        pass
 
     def _reshape_k_and_n(self,k,n,axes):
 
@@ -149,25 +161,20 @@ class Hammer:
 
         del self.k_original, self.n_original
 
-    def _load_spherical_harmonics(self):
-        """ Loads in the spherical harmonics file corresponding to nside and lmax. If they don't exist, then generate them. """
+    def _load_spherical_basis(self):
+        """ Loads in the spherical basis file. If they don't exist, then generate them. The generator must be implemented in each child class. """
 
-        self.spherical_harmonics_file = f'sphericalharmonics_nside{self.nside}_lmax{self.lmax}.h5'
-        if not os.path.isfile(self.spherical_harmonics_directory + self.spherical_harmonics_file):
-            print('Spherical harmonic file does not exist, generating...')
-            self._generate_spherical_harmonics(self.spherical_harmonics_directory + self.spherical_harmonics_file)
+        _spherical_basis_files = self.spherical_basis_file
 
-        # Load spherical harmonics
-        with h5py.File(self.spherical_harmonics_directory + self.spherical_harmonics_file, 'r') as shf:
-            self._lambda = shf['lambda'][:].T
-            self._azimuth = shf['azimuth'][:]
-            self._pixel_to_ring = shf['pixel_to_ring'][:].astype(int)
-            self._lower = shf['lower'][:].astype(int)
-            self._upper = shf['upper'][:].astype(int)
-            self._l = shf['l'][:]
-            self._m = shf['m'][:]
+        if not os.path.isfile(self.spherical_basis_directory + self.spherical_basis_file):
+            print('Spherical basis file does not exist, generating... (this may take some time!)')
+            self._generate_spherical_basis(self.spherical_basis_directory + self.spherical_basis_file)
 
-        print('Spherical harmonic file loaded')
+        # Load spherical wavelets
+        with h5py.File(self.spherical_basis_directory + self.spherical_basis_file, 'r') as sbf:
+            self.basis = {k:v[()] for k,v in sbf.items()}
+
+        print('Spherical basis file loaded')
 
     def _construct_cholesky_matrix(self,N,lengthscale):
 
@@ -185,38 +192,46 @@ class Hammer:
 
         return _N_subspace, _cholesky
 
-    def _process_mu_and_sigma(self,mu,sigma):
+    def _process_mu(self,mu):
 
         # Process mu
         if mu == None:
-            self.mu = np.zeros(self.H)
+            self.mu = np.zeros(self.S)
         elif isinstance(mu, np.ndarray):
-            assert mu.shape == (self.H,)
+            assert mu.shape == (self.S,)
             self.mu = mu
         elif callable(mu):
-            self.mu = mu(self._l,self._m)
+            self.mu = mu(self.basis['modes'])
+        elif type(mu) in [list,tuple]:
+            self.mu = self._process_mu_basis_specific(mu)
         else:
-            self.mu = mu*np.ones(self.H)
+            self.mu = mu*np.ones(self.S)
+
+    def _process_sigma(self,sigma):
 
         # Process sigma
         if sigma == None:
-            self.sigma = np.ones(self.H)
+            self.sigma = np.ones(self.S)
         elif isinstance(sigma, np.ndarray):
-            assert sigma.shape == (self.H,)
+            assert sigma.shape == (self.S,)
             self.sigma = sigma
         elif callable(sigma):
-            self.sigma = sigma(self._l,self._m)
+            self.sigma = sigma(self.basis['modes'])
         elif type(sigma) in [list,tuple]:
-            assert len(sigma) == 2
-            self.sigma = np.sqrt(np.exp(sigma[0])*np.power(1.0+self._l,sigma[1]))
+            self.sigma = self._process_sigma_basis_specific(sigma)
         else:
-            self.sigma = sigma*np.ones(self.H)
+            self.sigma = sigma*np.ones(self.S)
 
+    def _process_mu_basis_specific(self,sigma):
+        pass
+
+    def _process_sigma_basis_specific(self,sigma):
+        pass
 
 
     def _load_stan_model(self):
 
-        _model_file = 'magnitude_colour_position'
+        _model_file = f'{self.basis_keyword}_magnitude_colour_position'
         _model_file += '_sparse' if self.sparse else ''
 
         from cmdstanpy import CmdStanModel
@@ -231,16 +246,12 @@ class Hammer:
                            'M_subspace':self.M_subspace,
                            'C':self.C,
                            'C_subspace':self.C_subspace,
-                           'L':self.L,
-                           'H':self.H,
-                           'R':self.R,
-                           'lambda':self._lambda,
-                           'azimuth':self._azimuth,
-                           'pixel_to_ring':self._pixel_to_ring + 1,
-                           'lower':self._lower + 1,
-                           'upper':self._upper + 1,
+                           'S':self.S,
                            'mu':self.mu,
                            'sigma':self.sigma}
+
+        # Add the basis specific keys
+        self.stan_input.update(self.basis)
 
         if self.sparse:
             self.stan_input['cholesky_n_m'], self.stan_input['cholesky_w_m'], self.stan_input['cholesky_v_m'], self.stan_input['cholesky_u_m'] = self._sparsify(self.cholesky_m)
@@ -248,6 +259,28 @@ class Hammer:
         else:
             self.stan_input['cholesky_m'] = self.cholesky_m
             self.stan_input['cholesky_c'] = self.cholesky_c
+
+        integer_types = (np.int8, np.int16, np.int32, np.int64, np.uint8, np.uint16, np.uint32, np.uint64)
+        for k,v in self.stan_input.items():
+
+            # Convert everything to numpy array
+            if isinstance(v, (list, tuple)):
+                v = np.array(v)
+
+            # Correct for Stan being one-indexed - only apply to one-dimensional collections of integers
+            if isinstance(v, np.ndarray) and v.dtype in integer_types:
+                if k not in ['n','k','modes']:
+                    print('Incrementing',k)
+                    v = v + 1
+
+            # Deal with serialisation issue with integers
+            if isinstance(v, integer_types):
+                v = v.item()
+
+            self.stan_input[k] = v
+
+
+
 
     def _sparsify(self,_matrix):
 
@@ -265,7 +298,7 @@ class Hammer:
         _csr_n = _csr_matrix.data.size
         print(f"{100*(1.0-_csr_n/(_height*_width)):.2f}% sparsity")
 
-        return _csr_n, _csr_matrix.data, _csr_matrix.indices + 1, _csr_matrix.indptr + 1
+        return _csr_n, _csr_matrix.data, _csr_matrix.indices, _csr_matrix.indptr
 
     def _pivoted_cholesky(self, A, M, err_tol = 1e-6):
         """
@@ -355,74 +388,5 @@ class Hammer:
         _reordering = hp.nest2ring(_nside, np.arange(_npix))
         return A[:,:,_reordering]
 
-    def _generate_spherical_harmonics(self,gsh_file):
-
-        nside = self.nside
-        lmax = self.lmax
-        Npix = self.P
-
-        # Form the l's and m's
-        Nmodes = int((lmax+1)**2)
-        Nmodes_hp = int((lmax+1)*(lmax+2)/2)
-        l_hp,m_hp = hp.sphtfunc.Alm.getlm(lmax=lmax)
-        assert Nmodes_hp == l_hp.size
-
-        l, m = np.zeros(Nmodes,dtype=int), np.zeros(Nmodes,dtype=int)
-        l[:Nmodes_hp],m[:Nmodes_hp] = l_hp,m_hp
-        l[Nmodes_hp:],m[Nmodes_hp:] = l_hp[lmax+1:],-m_hp[lmax+1:]
-
-        # Ring idxs of pixels with phi=0
-        theta, phi = hp.pix2ang(nside, np.arange(hp.nside2npix(nside)))
-        theta_ring, unique_idx, jpix = np.unique(theta, return_index=True, return_inverse=True)
-
-        # Generate lambda
-        _lambda = np.zeros((Nmodes, 4*nside-1))
-        if False: # From scipy
-            # For |m|>0 this comes out a factor of 2 smaller than the healpy version
-            # For m<0 there's also a factor of (-1)^m difference
-            for i,(_l,_m) in enumerate(zip(tqdm.tqdm(l),m)):
-                _lambda[i] = (-1)**np.abs(_m) * np.real( scipy.special.sph_harm(np.abs(_m), _l, theta_ring*0., theta_ring) )
-        else: # From healpy
-            alm_hp = np.zeros(Nmodes_hp)
-            for i,(_l,_m) in enumerate(zip(tqdm.tqdm(l),m)):
-                i_hp = hp.sphtfunc.Alm.getidx(lmax, _l, np.abs(_m))
-                alm_hp = np.zeros(Nmodes_hp)*(0.+0.j)
-                # Get real component
-                alm_hp[i_hp] = 1.+0.j
-                map_hp = (1.+0.j)*hp.sphtfunc.alm2map(alm_hp,nside=nside, verbose=False)
-                # Add imaginary component
-                alm_hp[i_hp] = 0.+1.j
-                map_hp += (0.-1.j)*hp.sphtfunc.alm2map(alm_hp,nside=nside, verbose=False)
-                alm_hp[i_hp] = 0.+0.j
-                map_hp /= np.exp(1.j*np.abs(_m)*phi)
-                # Select unique latitude indices
-                _lambda[i] = (-1)**np.abs(_m) * np.real(map_hp)[unique_idx]
-
-                # Divide by 2
-                if _m != 0:
-                    _lambda[i] /= 2.0
-
-        # Generate Exponential
-        azimuth = np.ones((2*lmax+1,Npix))
-        for _m in range(-lmax, lmax+1):
-            if _m<0:   azimuth[_m+lmax] = np.sqrt(2) * np.sin(-_m*phi)
-            elif _m>0: azimuth[_m+lmax] = np.sqrt(2) * np.cos(_m*phi)
-            else: pass
-
-        # Generate indices mapping m to alm
-        lower, upper = np.zeros(2*lmax+1),np.zeros(2*lmax+1)
-        for i, _m in enumerate(range(-lmax,lmax+1)):
-            match = np.where(m==_m)[0]
-            lower[i] = match[0]
-            upper[i] = match[-1]
-
-        save_kwargs = {'compression':"lzf", 'chunks':True, 'fletcher32':False, 'shuffle':True}
-        with h5py.File(gsh_file, 'w') as f:
-            # Create datasets
-            f.create_dataset('lambda', data = _lambda, shape = (Nmodes, 4*nside-1,), dtype = np.float64, **save_kwargs)
-            f.create_dataset('azimuth',data = azimuth, shape = (2*lmax+1, Npix, ),   dtype = np.float64, **save_kwargs)
-            f.create_dataset('l',      data = l,       shape = (Nmodes,), dtype = np.uint32, scaleoffset=0, **save_kwargs)
-            f.create_dataset('m',      data = m,       shape = (Nmodes,), dtype = np.int32, scaleoffset=0, **save_kwargs)
-            f.create_dataset('pixel_to_ring',   data = jpix,    shape = (Npix,),   dtype = np.uint32, scaleoffset=0, **save_kwargs)
-            f.create_dataset('lower',   data = lower,    shape = (2*lmax+1,),   dtype = np.uint32, scaleoffset=0, **save_kwargs)
-            f.create_dataset('upper',   data = upper,    shape = (2*lmax+1,),   dtype = np.uint32, scaleoffset=0, **save_kwargs)
+    def _generate_spherical_basis(self,gsb_file):
+        pass
