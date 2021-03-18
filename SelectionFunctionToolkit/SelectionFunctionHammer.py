@@ -8,8 +8,8 @@ class Hammer(Base):
     
     basis_keyword = 'harmonic'
     
-    def _process_basis_options(self,basis_options):
-        self.lmax = basis_options['lmax'] if 'lmax' in basis_options.keys() else 0
+    def _process_basis_options(self,lmax = 0):
+        self.lmax = lmax
         self.S = (self.lmax + 1) ** 2
         self.spherical_basis_file = f'{self.basis_keyword}_nside{self.nside}_lmax{self.lmax}.h5'
         
