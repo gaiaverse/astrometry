@@ -3,9 +3,12 @@ from scipy import interpolate
 
 class littlewoodpaley:
     
-    _PSI_SPLINE = interpolate.splrep ( \
-    np.arange (-1.01, 0.02, 0.01),
-    np.array([  0.00000000e+00,   0.00000000e+00,   6.10726446e-26,
+    def __init__(self, B = 2.0):
+        
+        self.B = B
+        self.psi_spline = interpolate.splrep ( \
+        np.arange (-1.01, 0.02, 0.01),
+        np.array([  0.00000000e+00,   0.00000000e+00,   6.10726446e-26,
 	        1.80473593e-14,   1.63146885e-10,   1.81011396e-08,
 	        3.33941762e-07,   2.47115014e-06,   1.07501585e-05,
 	        3.33635137e-05,   8.23638779e-05,   1.72785830e-04,
@@ -48,7 +51,7 @@ class littlewoodpaley:
         (2008) that is used to build the actual needlet."""
 
         neg_u = np.clip (-np.abs (u), -1.0, 0.0)
-        value = interpolate.splev (neg_u, self._PSI_SPLINE)
+        value = interpolate.splev (neg_u, self.psi_spline)
 
         if np.isscalar (u):
             if u > 0.0:
@@ -59,17 +62,56 @@ class littlewoodpaley:
             u = np.array (u)  # Ensure that "u" is of the proper type
             return np.where (u > 0.0, 1 - value, value)
         
-    def phi (self, t, B):
+    def phi (self, t):
         """Estimate the phi function.
 
         "Phi" is the name of a function defined in the article by Marinucci et al.
         (2008) that is used to build the actual needlet."""
 
-        invB = 1.0/B
         # Ensure that "t" is of the correct type
         if not np.isscalar (t): t = np.array (t)
-        val = np.clip (1 - 2*B/(B - 1) * (t - invB), -1.0, 1.0)
+        val = np.clip (1 - 2*self.B/(self.B - 1) * (t - 1.0/self.B), -1.0, 1.0)
         return self.psi (val)
     
-    def window_function (self, u, B):
-        return np.sqrt (np.clip (self.phi (u / B, B) - self.phi (u, B), 0.0, 5.0))
+    def window_function (self, l, j):
+        u = l * np.power(self.B,-j)
+        return np.sqrt (np.clip (self.phi (u / self.B) - self.phi (u), 0.0, 5.0))
+    
+    def start(self, j):
+        return int(np.floor(self.B**(j-1)))
+    
+    def end(self, j):
+        return int(np.ceil(self.B**(j+1)))
+    
+class chisquare:
+    
+    def __init__(self, j, p = 1.0, B = 2.0, F = 1e-6, normalise = False):
+        self.j = np.array([_j for _j in j if _j >= 0])
+        self.p = p
+        self.B = B
+        self.F = F
+        self.normalise = normalise
+        self.compute_normalisation()
+
+        
+    
+    def window_function(self, l, j):
+        u = l*(l+1) / np.power(self.B,2.0*j)
+        N = self.normalisation[l.astype(np.int)] if type(l) == np.ndarray else self.normalisation[int(l)]
+        return N*np.power(u,self.p)*np.exp(-u)
+    
+    def compute_normalisation(self):
+        
+        self.lmax = self.end(max(self.j))
+        self.normalisation = np.ones(self.lmax+1)
+        if self.normalise == True:
+            for l in range(1,self.lmax+1):
+                self.normalisation[l] = 1.0/np.sum(np.square(self.window_function(l,self.j)))
+            
+    def start(self, j):
+        return 1
+    
+    def end(self, j):
+        from scipy import special
+        G = -self.p*special.lambertw(-np.power(self.F,1.0/self.p)/np.e,k=-1).real*np.power(self.B,2.0*j)
+        return int(np.ceil(0.5*(-1.0+np.sqrt(1.0+4.0*G))))
