@@ -3,11 +3,12 @@ import h5py
 import numpy as np
 
 jmax = int(sys.argv[1])
-B = float(sys.argv[2])
-nside = int(sys.argv[3])
-M = int(sys.argv[4])
-C = int(sys.argv[5])
-lengthscale = float(sys.argv[6]) # in units of magnitudes
+p = float(sys.argv[2])
+B = float(sys.argv[3])
+nside = int(sys.argv[4])
+M = int(sys.argv[5])
+C = int(sys.argv[6])
+lengthscale = float(sys.argv[7]) # in units of magnitudes
 
 # Load in data and format
 with h5py.File('./rvs_grid.h5', 'r') as g:
@@ -28,7 +29,7 @@ chisel = Chisel(k = box['k'],
                 n = box['n'],
                 axes = ['magnitude','colour','position'],
                 nest = True,
-                basis_options = {'j':[-1]+[i for i in range(jmax)],'B':B,'wavelet_tol':1e-4,'needlet':'chisquare'},
+                basis_options = {'j':[-1]+[i for i in range(jmax)],'p':p,'B':B,'wavelet_tol':1e-4,'needlet':'chisquare'},
                 lengthscale_m = lengthscale_m,
                 lengthscale_c = lengthscale_c,
                 M = M,
