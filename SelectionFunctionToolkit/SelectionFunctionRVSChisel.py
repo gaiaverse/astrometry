@@ -43,8 +43,8 @@ chisel = Chisel(k = box['k'],
                 )
 del box
 
-# Run hammer
-hammer.optimize(number_of_iterations = 10000)
+# Run chisel
+chisel.optimize(number_of_iterations = 10000)
 
 # Print convergence information
-hammer.print_convergence(number_of_lines = 10)
+chisel.print_convergence(number_of_lines = 10)
