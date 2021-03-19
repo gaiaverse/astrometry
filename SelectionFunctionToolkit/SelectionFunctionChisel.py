@@ -13,7 +13,7 @@ class Chisel(Base):
         if type(j) in [list,tuple,np.ndarray]:
             self.j = sorted([int(_j) for _j in j])
         else:
-            self.j = [_j for _j in range(j+1)]
+            self.j = [_j for _j in range(-1,j+1)]
         
         self.needlet, self.B, self.p, self.wavelet_tol = needlet, B, p, wavelet_tol
         
