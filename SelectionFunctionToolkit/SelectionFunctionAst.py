@@ -18,6 +18,55 @@ lengthscale_m = lengthscale/(M_bins[1]-M_bins[0])
 lengthscale_c = 1.
 
 
+if True:
+    # Scales linearly with (2^(2*jmax)), M,
+
+    # jmax:3, nside:16,  M:17, tol-1e-4  - ~ ? Gb, ? s
+    # jmax:3, nside:16,  M:17, tol-1e-2  - ~ ? Gb, ? s
+    # jmax:3, nside:16,  M:85, tol-1e-4  - ~ ? Gb, ? s
+    # jmax:3, nside:16,  M:85, tol-1e-2  - ~ ? Gb, ? s
+    # jmax:4, nside:16,  M:17, tol-1e-2  - ~ ? Gb, ? s
+    # jmax:3, nside:32,  M:17, tol-1e-2  - ~ ? Gb, ? s
+    # jmax:3, nside:32,  M:85, tol-1e-4  - ~ ? Gb, ? s
+    # jmax:4, nside:16,  M:85, tol-1e-4  - ~ ? Gb, ? s
+    # jmax:5, nside:16,  M:17, tol-1e-4  - ~ ? Gb, ? s
+    # jmax:5, nside:16,  M:85, tol-1e-4  - ~ ? Gb, ? s
+    # jmax:5, nside:32,  M:85, tol-1e-4  - ~ ? Gb, ? s
+    # jmax:5, nside:64,  M:85, tol-1e-4  - ~ ? Gb, ? s
+    # jmax:6, nside:128, M:85, tol-1e-4  - ~ ? Gb, ? s
+    # jmax:6, nside:32,  M:17, tol-1e-2  - ~ ? Gb, ? s
+
+    jmax=4
+    file_root = f"chisquare_jmax{jmax}_nside{nside}_M{M}_C{C}_l{lengthscale}"
+    print(file_root)
+    basis_options = {'needlet':'chisquare', 'j':jmax, 'B':2.0, 'p':1.0, 'wavelet_tol':1e-10}
+    # Import chisel
+    from SelectionFunctionChisel import Chisel
+    chisel = Chisel(box['k'], box['n'],
+                    basis_options,file_root,
+                    axes = ['magnitude','colour','position'],
+                    nest = True,
+                    lengthscale_m = lengthscale_m,
+                    lengthscale_c = lengthscale_c,
+                    M = M,
+                    C = C,
+                    nside = nside,
+                    sparse = True,
+                    pivot = True,
+                    mu = 0.0,
+                    sigma = [-0.81489922, -2.55429039],
+                    Mlim = [M_bins[0], M_bins[-1]],
+                    Clim = [-100,100],
+                    spherical_wavelets_directory='/data/asfe2/Projects/astrometry/SphericalWavelets/',
+                    stan_output_directory='/data/asfe2/Projects/astrometry/StanOutput/'
+                    )
+
+    # Run hammer
+    chisel.optimize(number_of_iterations = 10000)
+
+    # Print convergence information
+    chisel.print_convergence(number_of_lines = 10)
+
 if False:
     # lmax:100, nside:32, M:0.5 --> ~2.5Gb, 54s
     # lmax:100, nside:64, M:0.5 - ~12Gb, 800s
@@ -59,7 +108,7 @@ if False:
     # Print convergence information
     hammer.print_convergence(number_of_lines = 10)
 
-if True:
+if False:
     # Scales linearly with (2^(2*jmax)), M,
 
     # jmax:3, nside:16,  M:17, tol-1e-4  - ~1.7 Gb, 1654s
