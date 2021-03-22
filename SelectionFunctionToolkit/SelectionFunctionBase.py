@@ -19,7 +19,7 @@ class Base:
         self.spherical_basis_directory = self._verify_directory(spherical_basis_directory)
         self.stan_model_directory = self._verify_directory(stan_model_directory)
         self.stan_output_directory = self._verify_directory(stan_output_directory)
-        
+
         self.sparse = sparse
         self.sparse_tol = sparse_tol
         self.pivot = pivot
@@ -272,8 +272,6 @@ class Base:
                 v = v.item()
 
             self.stan_input[k] = v
-
-
 
 
     def _sparsify(self,_matrix):
