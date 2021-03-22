@@ -15,8 +15,13 @@ class Chisel(Base):
             self.j = sorted([int(_j) for _j in j])
 
         else:
+<<<<<<< HEAD
             self.j = [_j for _j in range(j+1)]
 
+=======
+            self.j = [_j for _j in range(-1,j+1)]
+        
+>>>>>>> 3c2a97447ae2b93f05902469d5b7f0abb29ec6c7
         self.needlet, self.B, self.p, self.wavelet_tol = needlet, B, p, wavelet_tol
 
         self.spherical_basis_file = f"{self.basis_keyword}_{self.needlet}_nside{self.nside}_B{self.B}_"+ (f"p{self.p}_" if self.needlet == 'chisquare' else '') + f"tol{self.wavelet_tol}_j[{','.join([str(_i) for _i in self.j])}].h5"
