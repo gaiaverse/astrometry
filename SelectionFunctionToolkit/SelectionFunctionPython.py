@@ -18,7 +18,7 @@ class pyChisel(Chisel):
     def evaluate_likelihood(self, z):
 
         def likelihood(z, S, M, C, P):
-            lnL, grad = wavelet_magnitude_colour_position(z.reshape((S, M, C)), M, C, P, *self.wavelet_args)
+            lnL, grad = wavelet_magnitude_colour_position_sparse(z.reshape((S, M, C)), M, C, P, *self.wavelet_args)
             return -lnL, -grad.flatten()
 
         return likelihood(z.flatten(), self.S, self.M, self.C, self.P)
@@ -40,9 +40,7 @@ class pyChisel(Chisel):
         res = scipy.optimize.minimize(likelihood, z0.flatten(), method='L-BFGS-B', jac=True, bounds=bounds, **scipy_kwargs)
 
         self.optimum_z = res['x'].reshape((self.S, self.M, self.C))
-
         #self.optimum_b = self.stan_input['mu'][:,None,None] + self.stan_input['sigma'][:,None,None] * (self.cholesky_m @ self.optimum_z @ self.cholesky_c.T)
-
         self.optimum_b, self.optimum_x = self._get_bx(self.optimum_z)
 
         if self.nest: self.optimum_x = self._ring_to_nest(np.moveaxis(self.optimum_x, 0, -1))

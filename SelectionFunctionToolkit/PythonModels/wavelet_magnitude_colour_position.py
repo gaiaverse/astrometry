@@ -185,6 +185,7 @@ def wavelet_magnitude_colour_position_sparse(z, M, C, P, k, n, mu, sigma,
             iY += 1
 
         exp_x = np.exp(x)
+        d = 1 + np.exp(-np.abs(x))
 
         # Likelihood gradient db/dz * dx/db * dlnL/dx
         for iS in wavelet_v[iSmin:iSmax]:
@@ -200,19 +201,22 @@ def wavelet_magnitude_colour_position_sparse(z, M, C, P, k, n, mu, sigma,
                         iCmax = cholesky_u_c[icol+1]
                         for iC in cholesky_v_c[iCmin:iCmax]:
 
+                            # lnL_grad[iS,iM,icol] += sigma[iS] * cholesky_w_m[iYmag] * \
+                            #                                     ( lnL_grad_local[iS,imag,iC] * (k[ipix,imag,iC] - n[ipix,imag,iC]/(1+1/exp_x[imag,iC])) ) * \
+                            #                                     cholesky_w_c[iYcol]
                             lnL_grad[iS,iM,icol] += sigma[iS] * cholesky_w_m[iYmag] * \
-                                                                ( lnL_grad_local[iS,imag,iC] * (k[ipix,imag,iC] - n[ipix,imag,iC]/(1+1/exp_x[imag,iC])) ) * \
+                                        ( lnL_grad_local[iS,imag,iC] * (k[ipix,imag,iC] - n[ipix,imag,iC]*(0.5 + np.sign(x[imag,iC])*(0.5+(1-d[imag,iC])/d[imag,iC])) ) ) * \
                                                                 cholesky_w_c[iYcol]
                             iYcol+=1
                     iYmag+=1
 
         #lnL += np.sum( -k[ipix]*np.log(1+1/exp_x) - (n[ipix]-k[ipix])*np.log(1+exp_x) )
-        lnL += np.sum( k[ipix]*x - n[ipix]*np.log1p(exp_x) )
+        #lnL += np.sum( k[ipix]*x - n[ipix]*np.log1p(exp_x) )
+        lnL += np.sum( k[ipix]*x - n[ipix]*(x/2 + np.abs(x)/2 + np.log(d) ) )
         #lnL += np.sum( k[ipix]*x - n[ipix]*(x/2 + np.log(2*np.cosh(x/2)) ) )
 
     # Add on Gaussian prior
     return lnL - 0.5*np.sum(z**2), lnL_grad - z
-
 
 # @njit
 # def wavelet_magnitude_colour_position_sparse(z, M, C, P, k, n, mu, sigma,
