@@ -4,7 +4,6 @@ import tqdm
 import h5py
 from SelectionFunctionBase import Base
 
-
 class Chisel(Base):
 
     basis_keyword = 'wavelet'
@@ -13,7 +12,6 @@ class Chisel(Base):
 
         if type(j) in [list,tuple,np.ndarray]:
             self.j = sorted([int(_j) for _j in j])
-
         else:
             self.j = [_j for _j in range(j+1)]
 

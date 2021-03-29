@@ -281,7 +281,6 @@ class Base:
 
 
 
-
     def _sparsify(self,_matrix):
 
         # Set any elements in each row that are smaller than self.sparse_tol * max(row) to zero

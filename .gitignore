@@ -8,3 +8,4 @@ dev
 */StanModels/*
 !*/StanModels/*.stan
 *.h5
+*.png
