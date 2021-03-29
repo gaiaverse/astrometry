@@ -26,24 +26,26 @@ class pyChisel(Chisel):
     def minimize(self, z0, bounds=None, method=None, **scipy_kwargs):
 
         tstart = time.time()
-        self._generate_args()
+        self._generate_args(sparse=True)
 
         if method is None:
             if bounds is None: method='BFGS'
             else: method='L-BFGS-B'
 
         def likelihood(z):
-            lnL, grad = wavelet_magnitude_colour_position(z.reshape((self.S, self.M, self.C)), self.M, self.C, self.P, *self.wavelet_args)
+            #lnL, grad = wavelet_magnitude_colour_position(z.reshape((self.S, self.M, self.C)), self.M, self.C, self.P, *self.wavelet_args)
+            lnL, grad = wavelet_magnitude_colour_position_sparse(z.reshape((self.S, self.M, self.C)), self.M, self.C, self.P, *self.wavelet_args)
             return -lnL, -grad.flatten()
 
         res = scipy.optimize.minimize(likelihood, z0.flatten(), method='L-BFGS-B', jac=True, bounds=bounds, **scipy_kwargs)
 
         self.optimum_z = res['x'].reshape((self.S, self.M, self.C))
-        self.optimum_b = self.stan_input['mu'][:,None,None] + self.stan_input['sigma'][:,None,None] * (self.cholesky_m @ self.optimum_z @ self.cholesky_c.T)
-        if self.nest:
-            self.optimum_x = self._ring_to_nest(np.transpose(self._get_x(self.optimum_b)))
-        else:
-            self.optimum_x = np.transpose(self._get_x(self.optimum_b))
+
+        #self.optimum_b = self.stan_input['mu'][:,None,None] + self.stan_input['sigma'][:,None,None] * (self.cholesky_m @ self.optimum_z @ self.cholesky_c.T)
+
+        self.optimum_b, self.optimum_x = self._get_bx(self.optimum_z)
+
+        if self.nest: self.optimum_x = self._ring_to_nest(np.moveaxis(self.optimum_x, 0, -1))
 
         # Save optimum to h5py
         self.optimum_results_file = self.file_root+'_scipy_results.h5'
@@ -57,20 +59,28 @@ class pyChisel(Chisel):
 
         return res
 
-    def _get_x(self, b):
+    def _get_bx(self, z):
 
-        return get_wavelet_x(b, self.P, self.M, self.C, self.stan_input['wavelet_u']-1, self.stan_input['wavelet_v']-1, self.stan_input['wavelet_w']-1)
+        Y = scipy.sparse.csr_matrix((self.stan_input['wavelet_w'], self.stan_input['wavelet_v']-1, self.stan_input['wavelet_u']-1))
+        Cm = scipy.sparse.csr_matrix((self.stan_input['cholesky_w_m'], self.stan_input['cholesky_v_m']-1, self.stan_input['cholesky_u_m']-1))
+        Cc = scipy.sparse.csr_matrix((self.stan_input['cholesky_w_c'], self.stan_input['cholesky_v_c']-1, self.stan_input['cholesky_u_c']-1))
+
+        b = self.stan_input['mu'][:,None,None] + self.stan_input['sigma'][:,None,None] * (self.cholesky_m @ z @ self.cholesky_c.T)
+
+        x = np.moveaxis(np.array([Y @ b[:,:,iC] for iC in range(self.C)]), 0,2)
+
+        return b, x
 
 
     def _generate_args(self, sparse=False):
 
         if sparse:
-            cholesky_args = [self.stan_input['cholesky_w_m'],
+            cholesky_args = [self.stan_input['cholesky_u_m']-1,
                              self.stan_input['cholesky_v_m']-1,
-                             self.stan_input['cholesky_u_m']-1,
-                             self.stan_input['cholesky_w_c'],
+                             self.stan_input['cholesky_w_m'],
+                             self.stan_input['cholesky_u_c']-1,
                              self.stan_input['cholesky_v_c']-1,
-                             self.stan_input['cholesky_u_c']-1]
+                             self.stan_input['cholesky_w_c']]
             self.wavelet_model = wavelet_magnitude_colour_position_sparse
         elif not sparse:
             self.cholesky_m = scipy.sparse.csr_matrix((self.stan_input['cholesky_w_m'],
@@ -81,7 +91,6 @@ class pyChisel(Chisel):
                                             self.stan_input['cholesky_u_c']-1), shape=(self.C,self.C)).toarray()
             cholesky_args = [self.cholesky_m, self.cholesky_c]
             self.wavelet_model = wavelet_magnitude_colour_position
-
 
         lnL_grad = np.zeros((self.S, self.M, self.C))
         x = np.zeros((self.M, self.C))
