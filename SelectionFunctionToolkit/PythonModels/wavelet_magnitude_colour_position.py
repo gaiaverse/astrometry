@@ -141,12 +141,14 @@ def wavelet_magnitude_colour_position(z, M, C, P, k, n, mu, sigma,
 def wavelet_magnitude_colour_position_sparse(z, M, C, P, k, n, mu, sigma,
                                                 wavelet_u, wavelet_v, wavelet_w,
                                                 cholesky_u_m, cholesky_v_m, cholesky_w_m,
-                                                cholesky_u_c, cholesky_v_c, cholesky_w_c,
-                                                lnL_grad, x):
+                                                cholesky_u_c, cholesky_v_c, cholesky_w_c):
+                                                #lnL_grad, x):
 
     lnL = 0.
-    lnL_grad *= 0.
-    lnL_grad_local = np.zeros(lnL_grad.shape)
+    #lnL_grad *= 0.
+    x = np.zeros((M, C))
+    lnL_grad = np.zeros(z.shape)
+    lnL_grad_local = np.zeros(z.shape)
 
     # Iterate over pixels
     iY = 0

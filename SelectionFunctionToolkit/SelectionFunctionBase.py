@@ -150,7 +150,6 @@ class Base:
             self.P = hp.nside2npix(self.nside)
 
         _downgrade = lambda A: A.reshape(self.M, self.M_original//self.M, self.C, self.C_original//self.C, self.P, self.P_original//self.P).sum(axis=(1,3,5))
-        print(self.k_original.shape)
 
         if self.nest:
             self.k = self._nest_to_ring(_downgrade(self.k_original))

@@ -4,7 +4,7 @@ eps=1e-10
 
 M = 17
 C = 1
-nside=32
+nside=4
 
 box={};
 with h5py.File('/data/asfe2/Projects/astrometry/gaia3_astcounts_arr_hpx128.h', 'r') as hf:
@@ -17,7 +17,7 @@ lengthscale = 0.3
 lengthscale_m = lengthscale/(M_bins[1]-M_bins[0])
 lengthscale_c = 1.
 
-jmax=3; B=2.
+jmax=2; B=2.
 file_root = f"chisquare_jmax{jmax}_nside{nside}_M{M}_C{C}_l{lengthscale}_B{B}"
 print(file_root)
 basis_options = {'needlet':'chisquare', 'j':jmax, 'B':B, 'p':1.0, 'wavelet_tol':1e-2}
@@ -43,9 +43,21 @@ pychisel = pyChisel(box['k'], box['n'],
                 stan_output_directory='/data/asfe2/Projects/astrometry/StanOutput/'
                 )
 
-z0 = np.zeros((pychisel.S, pychisel.M, pychisel.C))
-bounds=np.zeros((len(z0.flatten()), 2))
-bounds[:,0]=-5
-bounds[:,1]=5
+if True:
 
-pychisel.minimize(z0, method='BFGS', options={'disp':True, 'iprint':10, 'maxfun':1000})
+    z0 = np.random.rand(pychisel.S, pychisel.M, pychisel.C)-0.5
+    z0 = np.zeros((pychisel.S, pychisel.M, pychisel.C))
+
+    res = pychisel.minimize_ray(z0, ncores=3, method='Newton-CG', \
+                                  options={'disp':True, 'maxiter':50, 'xtol':1e-5})
+
+    print(res)
+
+
+if False:
+    z0 = np.zeros((pychisel.S, pychisel.M, pychisel.C))
+    bounds=np.zeros((len(z0.flatten()), 2))
+    bounds[:,0]=-5
+    bounds[:,1]=5
+
+    pychisel.minimize(z0, method='BFGS', options={'disp':True, 'iprint':10, 'maxfun':1000})
