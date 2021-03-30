@@ -38,7 +38,6 @@ class pyChisel(Chisel):
         self._generate_args(sparse=True)
 
         def likelihood(z):
-            #lnL, grad = wavelet_magnitude_colour_position(z.reshape((self.S, self.M, self.C)), self.M, self.C, self.P, *self.wavelet_args)
             lnL, grad = wavelet_magnitude_colour_position_sparse(z.reshape((self.S, self.M, self.C)), self.M, self.C, self.P, *self.wavelet_args)
             global lnlike_iter; lnlike_iter = lnL
             global gnorm_iter; gnorm_iter = np.sum(np.abs(grad))
