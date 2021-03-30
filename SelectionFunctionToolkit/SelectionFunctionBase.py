@@ -9,7 +9,7 @@ class Base:
 
     basis_keyword = 'base' # This must be changed in each file.
 
-    def __init__(self, k, n, basis_options, file_root, axes  = ['magnitude','colour','position'], lengthscale_m = 1.0, lengthscale_c = 1.0, M = None, C = None, nside = None, sparse = False, sparse_tol = 1e-4, pivot = False, pivot_tol = 1e-4, nest = True, mu = None, sigma = None, spherical_basis_directory='./SphericalBasis',stan_model_directory='./StanModels',stan_output_directory='./StanOutput'):
+    def __init__(self, k, n, basis_options, file_root, axes  = ['magnitude','colour','position'], lengthscale_m = 1.0, lengthscale_c = 1.0, M = None, C = None, Mlim=[-100,100], Clim=[-100,100], nside = None, sparse = False, sparse_tol = 1e-4, pivot = False, pivot_tol = 1e-4, nest = True, mu = None, sigma = None, spherical_basis_directory='./SphericalBasis',stan_model_directory='./StanModels',stan_output_directory='./StanOutput'):
 
         # Utilities
         self.order_to_nside = lambda order: 2**order

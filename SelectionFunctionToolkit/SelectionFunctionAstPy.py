@@ -37,8 +37,8 @@ pychisel = pyChisel(box['k'], box['n'],
                 pivot = True,
                 mu = 0.0,
                 sigma = [-0.81489922, -2.55429039],
-                # Mlim = [M_bins[0], M_bins[-1]],
-                # Clim = [-100,100],
+                Mlim = [M_bins[0], M_bins[-1]],
+                Clim = [-100,100],
                 spherical_basis_directory='/data/asfe2/Projects/astrometry/SphericalWavelets/',
                 stan_output_directory='/data/asfe2/Projects/astrometry/StanOutput/'
                 )
@@ -48,4 +48,4 @@ bounds=np.zeros((len(z0.flatten()), 2))
 bounds[:,0]=-5
 bounds[:,1]=5
 
-pychisel.minimize(z0, method='BFGS', options={'disp':True, 'iprint':5, 'maxfun':100})
+pychisel.minimize(z0, method='BFGS', options={'disp':True, 'iprint':10, 'maxfun':1000})
