@@ -84,7 +84,7 @@ class pyChisel(Chisel):
         print('Initialising arguments.')
         self._generate_args_ray(nsets=ncores-1, sparse=True)
 
-        if False:
+        if True:
             print('Initialising ray processes.')
             ray.init()
             evaluators = [evaluate.remote(self.S, self.M, self.C, self.P_ray[i], self.wavelet_args_ray[i]) for i in range(ncores-1)]
@@ -94,7 +94,7 @@ class pyChisel(Chisel):
                 combination = combiner.merge_likelihoods.remote(ray.get(evaluations))
                 return ray.get(combination)
             callback=combiner.fcall.remote
-        if True:
+        if False:
             print('Initialising processes.')
             evaluators = [evaluate(self.S, self.M, self.C, self.P_ray[i], self.wavelet_args_ray[i]) for i in range(ncores-1)]
             combiner = combine(self.S, self.M, self.C)
@@ -164,12 +164,12 @@ class pyChisel(Chisel):
 
     def _get_bx(self, z):
 
-        Y = scipy.sparse.csr_matrix((self.stan_input['wavelet_w'], self.stan_input['wavelet_v']-1, self.stan_input['wavelet_u']-1))
-        Cm = scipy.sparse.csr_matrix((self.stan_input['cholesky_w_m'], self.stan_input['cholesky_v_m']-1, self.stan_input['cholesky_u_m']-1))
-        Cc = scipy.sparse.csr_matrix((self.stan_input['cholesky_w_c'], self.stan_input['cholesky_v_c']-1, self.stan_input['cholesky_u_c']-1))
+        Y = scipy.sparse.csr_matrix((self.stan_input['wavelet_w'], self.stan_input['wavelet_v']-1, self.stan_input['wavelet_u']-1), shape=(self.P, self.S))
+        Cm = scipy.sparse.csr_matrix((self.stan_input['cholesky_w_m'], self.stan_input['cholesky_v_m']-1, self.stan_input['cholesky_u_m']-1), shape=(self.M, self.M))
+        Cc = scipy.sparse.csr_matrix((self.stan_input['cholesky_w_c'], self.stan_input['cholesky_v_c']-1, self.stan_input['cholesky_u_c']-1), shape=(self.C, self.C))
 
         b = self.stan_input['mu'][:,None,None] + self.stan_input['sigma'][:,None,None] * (self.cholesky_m @ z @ self.cholesky_c.T)
-
+        
         x = np.moveaxis(np.array([Y @ b[:,:,iC] for iC in range(self.C)]), 0,2)
 
         return b, x
