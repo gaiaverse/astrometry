@@ -9,6 +9,15 @@ from SelectionFunctionChisel import Chisel
 
 from PythonModels.wavelet_magnitude_colour_position import wavelet_magnitude_colour_position, wavelet_magnitude_colour_position_sparse, get_wavelet_x
 
+global lnlike_iter
+global gnorm_iter
+global tinit
+
+def fcall(X):
+    global tinit
+    global lnlike_iter
+    global gnorm_iter
+    print(f't={int(time.time()-tinit):05d}, lnL={lnlike_iter:.0f}, gnorm={gnorm_iter:.0f}')
 
 
 class pyChisel(Chisel):
@@ -23,21 +32,22 @@ class pyChisel(Chisel):
 
         return likelihood(z.flatten(), self.S, self.M, self.C, self.P)
 
-    def minimize(self, z0, bounds=None, method=None, **scipy_kwargs):
+    def minimize(self, z0, bounds=None, method='BFGS', **scipy_kwargs):
 
         tstart = time.time()
         self._generate_args(sparse=True)
 
-        if method is None:
-            if bounds is None: method='BFGS'
-            else: method='L-BFGS-B'
-
         def likelihood(z):
             #lnL, grad = wavelet_magnitude_colour_position(z.reshape((self.S, self.M, self.C)), self.M, self.C, self.P, *self.wavelet_args)
             lnL, grad = wavelet_magnitude_colour_position_sparse(z.reshape((self.S, self.M, self.C)), self.M, self.C, self.P, *self.wavelet_args)
+            global lnlike_iter; lnlike_iter = lnL
+            global gnorm_iter; gnorm_iter = np.sum(np.abs(grad))
             return -lnL, -grad.flatten()
 
-        res = scipy.optimize.minimize(likelihood, z0.flatten(), method='L-BFGS-B', jac=True, bounds=bounds, **scipy_kwargs)
+        global tinit
+        tinit = time.time()
+
+        res = scipy.optimize.minimize(likelihood, z0.flatten(), method=method, jac=True, bounds=bounds, callback=fcall, **scipy_kwargs)
 
         self.optimum_z = res['x'].reshape((self.S, self.M, self.C))
         #self.optimum_b = self.stan_input['mu'][:,None,None] + self.stan_input['sigma'][:,None,None] * (self.cholesky_m @ self.optimum_z @ self.cholesky_c.T)
