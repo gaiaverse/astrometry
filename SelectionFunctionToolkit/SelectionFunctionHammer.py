@@ -3,16 +3,17 @@ import healpy as hp
 import tqdm
 import h5py
 from SelectionFunctionBase import Base
+import os
 
 class Hammer(Base):
-    
+
     basis_keyword = 'harmonic'
-    
+
     def _process_basis_options(self,lmax = 0):
         self.lmax = lmax
         self.S = (self.lmax + 1) ** 2
         self.spherical_basis_file = f'{self.basis_keyword}_nside{self.nside}_lmax{self.lmax}.h5'
-        
+
     def _process_sigma_basis_specific(self,sigma):
         assert len(sigma) == 2
         return np.sqrt(np.exp(sigma[0])*np.power(1.0+self.basis['modes'],sigma[1]))
