@@ -14,7 +14,7 @@ with h5py.File('/data/asfe2/Projects/astrometry/gaia3_astcounts_arr_hpx128.h', '
 print("Mag bins:", np.linspace(M_bins[0], M_bins[-1], M+1))
 
 lengthscale = 0.3
-lengthscale_m = lengthscale/(M_bins[1]-M_bins[0])
+lengthscale_m = 3.#lengthscale/(M_bins[1]-M_bins[0])
 lengthscale_c = 1.
 
 jmax=2; B=2.
