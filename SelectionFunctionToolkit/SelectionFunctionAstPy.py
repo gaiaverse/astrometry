@@ -1,23 +1,24 @@
 import sys, h5py, numpy as np, scipy.stats, healpy as hp, tqdm
 
 eps=1e-10
-
-M = 17
-C = 1
-nside=4
+M = 17; C = 1; nside=8; jmax=2; B=2.
 
 box={};
 with h5py.File('/data/asfe2/Projects/astrometry/gaia3_astcounts_arr_hpx128.h', 'r') as hf:
     box['n'] = hf['n'][...]
     box['k'] = hf['k'][...]
     M_bins = hf['magbins'][...]
+    C_bins = np.array([-100,100])
 print("Mag bins:", np.linspace(M_bins[0], M_bins[-1], M+1))
 
 lengthscale = 0.3
-lengthscale_m = 3.#lengthscale/(M_bins[1]-M_bins[0])
-lengthscale_c = 1.
+# Calculate lengthscales in units of bins
+M_original, C_original = box['k'].shape[:2]
+lengthscale_m = lengthscale/((M_bins[1]-M_bins[0])*(M_original/M))
+lengthscale_c = lengthscale/((C_bins[1]-C_bins[0])*(C_original/C))
+print(f"lengthscales m:{lengthscale_m} , c:{lengthscale_c}")
 
-jmax=2; B=2.
+
 file_root = f"chisquare_jmax{jmax}_nside{nside}_M{M}_C{C}_l{lengthscale}_B{B}"
 print(file_root)
 basis_options = {'needlet':'chisquare', 'j':jmax, 'B':B, 'p':1.0, 'wavelet_tol':1e-2}
@@ -38,7 +39,7 @@ pychisel = pyChisel(box['k'], box['n'],
                 mu = 0.0,
                 sigma = [-0.81489922, -2.55429039],
                 Mlim = [M_bins[0], M_bins[-1]],
-                Clim = [-100,100],
+                Clim = [C_bins[0], C_bins[-1]],
                 spherical_basis_directory='/data/asfe2/Projects/astrometry/SphericalWavelets/',
                 stan_output_directory='/data/asfe2/Projects/astrometry/StanOutput/'
                 )

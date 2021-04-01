@@ -181,14 +181,6 @@ class pyChisel(Chisel):
         x = np.zeros((self.P, self.M, self.C))
         x = wavelet_x_sparse(z.reshape((self.S, self.M_subspace, self.C_subspace)), self.M, self.C, self.P, *self.wavelet_args[2:], x, MC)
 
-        # Y = scipy.sparse.csr_matrix((self.stan_input['wavelet_w'], self.stan_input['wavelet_v']-1, self.stan_input['wavelet_u']-1), shape=(self.P, self.S))
-        # Cm = scipy.sparse.csr_matrix((self.stan_input['cholesky_w_m'], self.stan_input['cholesky_v_m']-1, self.stan_input['cholesky_u_m']-1), shape=(self.M, self.M))
-        # Cc = scipy.sparse.csr_matrix((self.stan_input['cholesky_w_c'], self.stan_input['cholesky_v_c']-1, self.stan_input['cholesky_u_c']-1), shape=(self.C, self.C))
-        #
-        # b = self.stan_input['mu'][:,None,None] + self.stan_input['sigma'][:,None,None] * (self.cholesky_m @ z @ self.cholesky_c.T)
-        #
-        # x = np.moveaxis(np.array([Y @ b[:,:,iC] for iC in range(self.C)]), 0,2)
-
         return b, x
 
     def _cholesky_args(self, sparse=False):
