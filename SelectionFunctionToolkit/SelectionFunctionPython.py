@@ -2,7 +2,7 @@ import sys, os
 import numpy as np
 import healpy as hp
 import tqdm, h5py, time
-import ray, multiprocessing
+import ray, multiprocessing, numba
 import scipy.optimize
 import scipy.sparse
 
@@ -21,10 +21,22 @@ def fcall(X):
     global gnorm_iter
     print(f't={int(time.time()-tinit):05d}, lnL={lnlike_iter:.0f}, gnorm={gnorm_iter:.0f}')
 
+def print_log(message, logfile="data/vault/asfe2/logs/default_log.txt"):
+
+    if os.path.exists(logfile): mode='a'
+    else: mode='w'
+
+    with open(logfile, mode) as f:
+        f.write(message)
+    print(message)
+
+
 @ray.remote
 class evaluate():
 
-    def __init__(self, P, S, M, C, M_subspace, C_subspace, wavelet_args):
+    def __init__(self, P, S, M, C, M_subspace, C_subspace, wavelet_args,
+                       logfile='/data/asfe2/Projects/astrometry/PyOutput/log.txt',
+                       savefile='/data/asfe2/Projects/astrometry/PyOutput/progress.h'):
 
         self.P=P
         self.S=S
@@ -33,6 +45,9 @@ class evaluate():
         self.M_subspace=M_subspace
         self.C_subspace=C_subspace
         self.wavelet_args=wavelet_args
+
+        self.logfile=logfile
+        self.savefile=savefile
 
         self.x = np.zeros((self.P, self.M, self.C))
         self.lnL_grad = np.zeros((self.S, self.M_subspace, self.C_subspace))
@@ -64,13 +79,23 @@ class evaluate():
             grad += e[1]
 
         self.lnlike_iter = lnL
-        self.gnorm_iter = np.sum(np.abs(grad))
+        self.gnorm_iter = np.sqrt(np.sum(grad**2))/(self.S * self.M_subspace * self.C_subspace)
         self.nfev += 1
 
         return -lnL, -grad.flatten()
 
+    def save_progress(self, X):
+
+        if os.path.exists(self.savefile): mode='a'
+        else: mode='w'
+
+        with h5py.File(self.savefile, mode) as hf:
+            hf.create_dataset(str(self.nfev), data=X)
+
     def fcall(self, X):
-        print(f't={int(time.time()-self.tinit):03d}, n={self.nfev:02d}, lnL={self.lnlike_iter:.0f}, gnorm={self.gnorm_iter:.0f}', end=' \r')
+
+        self.save_progress(X)
+        print_log(f't={int(time.time()-self.tinit):03d}, n={self.nfev:02d}, lnL={self.lnlike_iter:.0f}, gnorm={self.gnorm_iter:.5f}\n', logfile=self.logfile)
 
 
 class pyChisel(Chisel):
@@ -89,6 +114,12 @@ class pyChisel(Chisel):
 
         tstart = time.time()
 
+        numba.set_num_threads(1)
+        logfile = '/data/asfe2/Projects/astrometry/PyOutput/'+self.file_root+'_log.txt'
+        savefile = '/data/asfe2/Projects/astrometry/PyOutput/'+self.file_root+'_progress.h'
+        if os.path.exists(savefile):
+            raise OSError(f"File {savefile} already exists, won't overwrite.")
+
         print('Initialising arguments.')
         self._generate_args(sparse=True)
         self._generate_args_ray(nsets=ncores-1, sparse=True)
@@ -97,7 +128,7 @@ class pyChisel(Chisel):
             print('Initialising ray processes.')
             ray.shutdown()
             ray.init()
-            evaluators = [evaluate.remote(self.P_ray[i], self.S, self.M, self.C, self.M_subspace, self.C_subspace, self.wavelet_args_ray[i]) for i in range(ncores-1)]
+            evaluators = [evaluate.remote(self.P_ray[i], self.S, self.M, self.C, self.M_subspace, self.C_subspace, self.wavelet_args_ray[i], logfile=logfile, savefile=savefile) for i in range(ncores-1)]
             def likelihood(z):
                 evaluations = [e.evaluate_likelihood.remote(z) for e in evaluators]
                 combination = evaluators[0].merge_likelihoods.remote(ray.get(evaluations))
@@ -135,10 +166,14 @@ class pyChisel(Chisel):
 
         return res
 
-    def minimize(self, z0, bounds=None, method='BFGS', **scipy_kwargs):
+    def minimize(self, z0, ncores=2, bounds=None, method='BFGS', **scipy_kwargs):
 
         tstart = time.time()
         self._generate_args(sparse=True)
+
+        print('Number of threads: ', numba.get_num_threads())
+        numba.set_num_threads(ncores)
+        print('Number of threads: ', numba.get_num_threads())
 
         def likelihood(z):
             x = np.zeros((self.P, self.M, self.C))
@@ -170,6 +205,18 @@ class pyChisel(Chisel):
         print(f'Optimum values stored in {self.stan_output_directory + self.optimum_results_file}')
 
         return res
+
+    def _evaluate_likelihood(self, z, ncores=1):
+
+        numba.set_num_threads(ncores)
+
+        self._generate_args(sparse=True)
+
+        x = np.zeros((self.P, self.M, self.C))
+        lnL_grad = np.zeros((self.S, self.M_subspace, self.C_subspace))
+        MC = np.zeros((self.M, self.C))
+        lnL, grad = wavelet_magnitude_colour_position_sparse(z.reshape((self.S, self.M_subspace, self.C_subspace)), self.M, self.C, self.P, *self.wavelet_args, x, lnL_grad, MC)
+        return lnL, grad
 
     def _get_bx(self, z):
 

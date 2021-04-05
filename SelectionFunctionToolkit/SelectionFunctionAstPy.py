@@ -1,5 +1,13 @@
 import sys, h5py, numpy as np, scipy.stats, healpy as hp, tqdm
 
+
+# M = 17; C = 1; nside=4; jmax=2; B=2.; ncores=5:   250s
+# M = 17; C = 1; nside=8; jmax=3; B=2.; ncores=20:   500s
+# M = 17; C = 1; nside=8; jmax=3; B=2.; ncores=20 BFGS: 1701s
+# M = 17; C = 1; nside=32; jmax=3; B=2.; ncores=30: 1800s
+# M = 17; C = 1; nside=64; jmax=4; B=2.; ncores=30: 8500s
+# M = 85; C = 1; nside=64; jmax=4; B=2.; ncores=30:         32Gb
+
 eps=1e-10
 M = 17; C = 1; nside=8; jmax=2; B=2.
 

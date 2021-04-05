@@ -1,5 +1,11 @@
 import sys, h5py, numpy as np, scipy.stats, healpy as hp, tqdm
 
+# M = 17; C = 1; nside=4; jmax=2; B=2.:   25s
+# M = 17; C = 1; nside=8; jmax=3; B=2.:   258s
+# M = 17; C = 1; nside=32; jmax=3; B=2.:  1800s
+# M = 17; C = 1; nside=64; jmax=4; B=2.:  20000s
+# M = 85; C = 1; nside=64; jmax=4; B=2.:
+
 eps=1e-10
 
 M = 17

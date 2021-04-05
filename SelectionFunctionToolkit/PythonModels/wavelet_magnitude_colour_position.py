@@ -1,9 +1,13 @@
 import numpy as np
-from numba import njit
+from numba import njit, jit, prange, config
+
+config.THREADING_LAYER = 'threadsafe'
+parallel = False
 
 eps=1e-10
 
-@njit
+
+@njit(parallel=parallel)
 def wavelet_x_sparse(z, M, C, P, mu, sigma,
             wavelet_u, wavelet_v, wavelet_w,
             cholesky_u_m, cholesky_v_m, cholesky_w_m,
@@ -17,7 +21,7 @@ def wavelet_x_sparse(z, M, C, P, mu, sigma,
 
     # Iterate over pixels
     iY = 0
-    for ipix in range(P):
+    for ipix in prange(P):
 
         # Iterate over modes which are not sparsified in Y
         iSmin = wavelet_u[ipix]
@@ -25,12 +29,12 @@ def wavelet_x_sparse(z, M, C, P, mu, sigma,
         for iS in wavelet_v[iSmin:iSmax]:
             MC *= 0.
             iYmag = 0
-            for iM in range(M):
+            for iM in prange(M):
                 iMmin = cholesky_u_m[iM]
                 iMmax = cholesky_u_m[iM+1]
                 for iMsub in cholesky_v_m[iMmin:iMmax]:
                     iYcol = 0
-                    for iC in range(C):
+                    for iC in prange(C):
                         iCmin = cholesky_u_c[iC]
                         iCmax = cholesky_u_c[iC+1]
                         for iCsub in cholesky_v_c[iCmin:iCmax]:
@@ -79,7 +83,7 @@ def wavelet_b_sparse(z, M, C, S, mu, sigma,
 
     return b
 
-@njit
+@njit(parallel=parallel)
 def wavelet_magnitude_colour_position_sparse(z, M, C, P, k, n, mu, sigma,
                                                 wavelet_u, wavelet_v, wavelet_w,
                                                 cholesky_u_m, cholesky_v_m, cholesky_w_m,
@@ -100,7 +104,7 @@ def wavelet_magnitude_colour_position_sparse(z, M, C, P, k, n, mu, sigma,
 
     # Iterate over pixels
     iY = 0
-    for ipix in range(P):
+    for ipix in prange(P):
 
         d = 1 + np.exp(-np.abs(x[ipix]))
 
@@ -111,12 +115,12 @@ def wavelet_magnitude_colour_position_sparse(z, M, C, P, k, n, mu, sigma,
         for iS in wavelet_v[iSmin:iSmax]:
             # Evaluate b from z at iS mode
             iYmag = 0
-            for iM in range(M):
+            for iM in prange(M):
                 iMmin = cholesky_u_m[iM]
                 iMmax = cholesky_u_m[iM+1]
                 for iMsub in cholesky_v_m[iMmin:iMmax]:
                     iYcol = 0
-                    for iC in range(C):
+                    for iC in prange(C):
 
                         iCmin = cholesky_u_c[iC]
                         iCmax = cholesky_u_c[iC+1]
@@ -135,6 +139,140 @@ def wavelet_magnitude_colour_position_sparse(z, M, C, P, k, n, mu, sigma,
         #lnL += np.sum( k[ipix]*x - n[ipix]*np.log1p(exp_x) )
         #lnL += np.sum( k[ipix]*x - n[ipix]*(x/2 + np.log(2*np.cosh(x/2)) ) )
         lnL += np.sum( k[ipix]*x[ipix] - n[ipix]*(x[ipix]/2 + np.abs(x[ipix])/2 + np.log(d) ) )
+
+    # Add on Gaussian prior
+    return lnL - 0.5*np.sum(z**2), lnL_grad - z
+
+@njit(parallel=False)
+def wavelet_magnitude_colour_position_sparse3(z, M, C, P, k, n, mu, sigma,
+                                                wavelet_u, wavelet_v, wavelet_w,
+                                                cholesky_u_m, cholesky_v_m, cholesky_w_m,
+                                                cholesky_u_c, cholesky_v_c, cholesky_w_c,
+                                                x, lnL_grad, MC):
+
+    # x = np.zeros((M, C))
+    # lnL_grad = np.zeros((S, M_subspace, C_subspace))
+
+    lnL = 0.
+    lnL_grad *= 0.
+    x *= 0.
+    MC *= 0.
+
+    # Iterate over pixels
+    iY = 0
+    for ipix in prange(P):
+
+        x = wavelet_x_sparse(z, M, C, 1, mu, sigma,
+                    wavelet_u[ipix:ipix+2], wavelet_v, wavelet_w,
+                    cholesky_u_m, cholesky_v_m, cholesky_w_m,
+                    cholesky_u_c, cholesky_v_c, cholesky_w_c,
+                    x, MC)
+        d = 1 + np.exp(-np.abs(x[0]))
+
+        # Iterate over modes which are not sparsified in Y
+        iSmin = wavelet_u[ipix]
+        iSmax = wavelet_u[ipix+1]
+        # Likelihood gradient db/dz * dx/db * dlnL/dx
+        for iS in wavelet_v[iSmin:iSmax]:
+
+            # Evaluate b from z at iS mode
+            iYmag = 0
+            for iM in range(M):
+                iMmin = cholesky_u_m[iM]
+                iMmax = cholesky_u_m[iM+1]
+                for iMsub in cholesky_v_m[iMmin:iMmax]:
+                    iYcol = 0
+                    for iC in range(C):
+
+                        iCmin = cholesky_u_c[iC]
+                        iCmax = cholesky_u_c[iC+1]
+                        for iCsub in cholesky_v_c[iCmin:iCmax]:
+
+                            lnL_grad[iS,iMsub,iCsub] += sigma[iS] * cholesky_w_m[iYmag] * cholesky_w_c[iYcol] * wavelet_w[iY] \
+                                          * (k[ipix,iM,iC] - n[ipix,iM,iC]*(0.5 + np.sign(x[0,iM,iC])*(0.5+(1-d[iM,iC])/d[iM,iC])) )
+
+                            iYcol+=1
+                    iYmag+=1
+                #lnL += np.sum(k[ipix,iM]*x[iM] - n[ipix,iM]*(x[iM]/2 + np.abs(x[iM])/2 + np.log(d[iM]) ))
+            iY += 1
+
+        #lnL += np.sum( -k[ipix]*np.log(1+1/exp_x) - (n[ipix]-k[ipix])*np.log(1+exp_x) )
+        #lnL += np.sum( k[ipix]*x - n[ipix]*np.log1p(exp_x) )
+        #lnL += np.sum( k[ipix]*x - n[ipix]*(x/2 + np.log(2*np.cosh(x/2)) ) )
+        lnL += np.sum( k[ipix]*x - n[ipix]*(x[0]/2 + np.abs(x[0])/2 + np.log(d) ) )
+
+    # Add on Gaussian prior
+    return lnL - 0.5*np.sum(z**2), lnL_grad - z
+
+@njit(parallel=parallel)
+def wavelet_magnitude_colour_position_sparse2(z, M, C, P, k, n, mu, sigma,
+                                                wavelet_u, wavelet_v, wavelet_w,
+                                                cholesky_u_m, cholesky_v_m, cholesky_w_m,
+                                                cholesky_u_c, cholesky_v_c, cholesky_w_c,
+                                                x, lnL_grad, MC):
+
+    # x = np.zeros((M, C))
+    # lnL_grad = np.zeros((S, M_subspace, C_subspace))
+
+    lnL = 0.
+    lnL_grad *= 0.
+    x *= 0.
+    MC *= 0.
+
+    # Iterate over pixels
+    iY = 0
+    for ipix in prange(P):
+
+        # Iterate over modes which are not sparsified in Y
+        iSmin = wavelet_u[ipix]
+        iSmax = wavelet_u[ipix+1]
+        for iS in wavelet_v[iSmin:iSmax]:
+            MC *= 0.
+            iYmag = 0
+            for iM in range(M):
+                iMmin = cholesky_u_m[iM]
+                iMmax = cholesky_u_m[iM+1]
+                for iMsub in cholesky_v_m[iMmin:iMmax]:
+                    iYcol = 0
+                    for iC in range(C):
+                        iCmin = cholesky_u_c[iC]
+                        iCmax = cholesky_u_c[iC+1]
+                        for iCsub in cholesky_v_c[iCmin:iCmax]:
+                            MC[iM, iC] += (cholesky_w_m[iYmag] * z[iS,iMsub,iCsub] * cholesky_w_c[iYcol]);
+
+                            iYcol+=1
+                    iYmag += 1
+
+            x += (mu[iS] + sigma[iS]*MC)* wavelet_w[iY]
+
+        d = 1 + np.exp(-np.abs(x))
+        for iS in wavelet_v[iSmin:iSmax]:
+
+            # Evaluate b from z at iS mode
+            iYmag = 0
+            for iM in range(M):
+                iMmin = cholesky_u_m[iM]
+                iMmax = cholesky_u_m[iM+1]
+                for iMsub in cholesky_v_m[iMmin:iMmax]:
+                    iYcol = 0
+                    for iC in range(C):
+
+                        iCmin = cholesky_u_c[iC]
+                        iCmax = cholesky_u_c[iC+1]
+                        for iCsub in cholesky_v_c[iCmin:iCmax]:
+
+                            lnL_grad[iS,iMsub,iCsub] += sigma[iS] * cholesky_w_m[iYmag] * cholesky_w_c[iYcol] * wavelet_w[iY] \
+                                          * (k[ipix,iM,iC] - n[ipix,iM,iC]*(0.5 + np.sign(x[iM,iC])*(0.5+(1-d[iM,iC])/d[iM,iC])) )
+
+                            iYcol+=1
+                    iYmag+=1
+                #lnL += np.sum(k[ipix,iM]*x[iM] - n[ipix,iM]*(x[iM]/2 + np.abs(x[iM])/2 + np.log(d[iM]) ))
+            iY += 1
+
+        #lnL += np.sum( -k[ipix]*np.log(1+1/exp_x) - (n[ipix]-k[ipix])*np.log(1+exp_x) )
+        #lnL += np.sum( k[ipix]*x - n[ipix]*np.log1p(exp_x) )
+        #lnL += np.sum( k[ipix]*x - n[ipix]*(x/2 + np.log(2*np.cosh(x/2)) ) )
+        lnL += np.sum( k[ipix]*x - n[ipix]*(x/2 + np.abs(x)/2 + np.log(d) ) )
 
     # Add on Gaussian prior
     return lnL - 0.5*np.sum(z**2), lnL_grad - z
