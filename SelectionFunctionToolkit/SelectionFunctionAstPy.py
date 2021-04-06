@@ -9,7 +9,7 @@ import sys, h5py, numpy as np, scipy.stats, healpy as hp, tqdm
 # M = 85; C = 1; nside=64; jmax=4; B=2.; ncores=30:         32Gb
 
 eps=1e-10
-M = 17; C = 1; nside=8; jmax=2; B=2.
+M = 17; C = 1; nside=8; jmax=2; B=3.
 
 box={};
 with h5py.File('/data/asfe2/Projects/astrometry/gaia3_astcounts_arr_hpx128.h', 'r') as hf:
@@ -57,7 +57,7 @@ if True:
     z0 = np.random.rand(pychisel.S, pychisel.M, pychisel.C)-0.5
     z0 = np.zeros((pychisel.S, pychisel.M, pychisel.C))
 
-    res = pychisel.minimize_ray(z0, ncores=3, method='Newton-CG', \
+    res = pychisel.minimize_ray(z0, ncores=2, method='Newton-CG', \
                                   options={'disp':True, 'maxiter':50, 'xtol':1e-5})
 
     print(res)

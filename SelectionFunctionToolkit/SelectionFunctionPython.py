@@ -51,7 +51,7 @@ class evaluate():
 
         self.x = np.zeros((self.P, self.M, self.C))
         self.lnL_grad = np.zeros((self.S, self.M_subspace, self.C_subspace))
-        self.MC = np.zeros((self.M, self.C))
+        #self.MC = np.zeros((self.M, self.C))
 
         self.tinit = time.time()
         self.lnlike_iter = 0.
@@ -62,12 +62,11 @@ class evaluate():
 
         x = np.zeros((self.P, self.M, self.C))
         lnL_grad = np.zeros((self.S, self.M_subspace, self.C_subspace))
-        MC = np.zeros((self.M, self.C))
 
-        lnl, grad = wavelet_magnitude_colour_position_sparse(z.reshape((self.S, self.M_subspace, self.C_subspace)), \
-                                                        self.M, self.C, self.P, *self.wavelet_args, x, lnL_grad, MC)
+        lnL, lnL_grad = wavelet_magnitude_colour_position_sparse(z.reshape((self.S, self.M_subspace, self.C_subspace)), \
+                                                        self.M, self.C, self.P, *self.wavelet_args, x, lnL_grad)
 
-        return lnl, grad
+        return lnL, lnL_grad
 
     def merge_likelihoods(self, evaluations):
 
@@ -178,8 +177,7 @@ class pyChisel(Chisel):
         def likelihood(z):
             x = np.zeros((self.P, self.M, self.C))
             lnL_grad = np.zeros((self.S, self.M_subspace, self.C_subspace))
-            MC = np.zeros((self.M, self.C))
-            lnL, grad = wavelet_magnitude_colour_position_sparse(z.reshape((self.S, self.M_subspace, self.C_subspace)), self.M, self.C, self.P, *self.wavelet_args, x, lnL_grad, MC)
+            lnL, grad = wavelet_magnitude_colour_position_sparse(z.reshape((self.S, self.M_subspace, self.C_subspace)), self.M, self.C, self.P, *self.wavelet_args, x, lnL_grad)
             global lnlike_iter; lnlike_iter = lnL
             global gnorm_iter; gnorm_iter = np.sum(np.abs(grad))
             return -lnL, -grad.flatten()
@@ -206,16 +204,15 @@ class pyChisel(Chisel):
 
         return res
 
-    def _evaluate_likelihood(self, z, ncores=1):
+    def _evaluate_likelihood(self, z, ncores=1, generate=True):
 
-        numba.set_num_threads(ncores)
-
-        self._generate_args(sparse=True)
+        if generate:
+            numba.set_num_threads(ncores)
+            self._generate_args(sparse=True)
 
         x = np.zeros((self.P, self.M, self.C))
         lnL_grad = np.zeros((self.S, self.M_subspace, self.C_subspace))
-        MC = np.zeros((self.M, self.C))
-        lnL, grad = wavelet_magnitude_colour_position_sparse(z.reshape((self.S, self.M_subspace, self.C_subspace)), self.M, self.C, self.P, *self.wavelet_args, x, lnL_grad, MC)
+        lnL, grad = wavelet_magnitude_colour_position_sparse(z.reshape((self.S, self.M_subspace, self.C_subspace)), self.M, self.C, self.P, *self.wavelet_args, x, lnL_grad)
         return lnL, grad
 
     def _get_bx(self, z):
@@ -233,18 +230,27 @@ class pyChisel(Chisel):
     def _cholesky_args(self, sparse=False):
 
         if sparse:
-            cholesky_args = [self.stan_input['cholesky_u_m']-1,
-                             self.stan_input['cholesky_v_m']-1,
-                             self.stan_input['cholesky_w_m'],
-                             self.stan_input['cholesky_u_c']-1,
-                             self.stan_input['cholesky_v_c']-1,
-                             self.stan_input['cholesky_w_c']]
             self.cholesky_m = scipy.sparse.csr_matrix((self.stan_input['cholesky_w_m'],
                                                 self.stan_input['cholesky_v_m']-1,
                                                 self.stan_input['cholesky_u_m']-1)).toarray()
             self.cholesky_c = scipy.sparse.csr_matrix((self.stan_input['cholesky_w_c'],
                                             self.stan_input['cholesky_v_c']-1,
                                             self.stan_input['cholesky_u_c']-1)).toarray()
+
+            cholesky_u_m = np.zeros(len(self.stan_input['cholesky_v_m']), dtype=int)
+            for iS, iY in enumerate(self.stan_input['cholesky_u_m'][1:]-1):
+                cholesky_u_m[iY:] += 1
+            cholesky_u_c = np.zeros(len(self.stan_input['cholesky_v_c']), dtype=int)
+            for iS, iY in enumerate(self.stan_input['cholesky_u_c'][1:]-1):
+                cholesky_u_c[iY:] += 1
+
+            cholesky_args = [cholesky_u_m,
+                             self.stan_input['cholesky_v_m']-1,
+                             self.stan_input['cholesky_w_m'],
+                             cholesky_u_c,
+                             self.stan_input['cholesky_v_c']-1,
+                             self.stan_input['cholesky_w_c']]
+
             self.wavelet_model = wavelet_magnitude_colour_position_sparse
         elif not sparse:
             self.cholesky_m = scipy.sparse.csr_matrix((self.stan_input['cholesky_w_m'],
@@ -266,11 +272,14 @@ class pyChisel(Chisel):
         lnL_grad = np.zeros((self.S, self.M, self.C))
         x = np.zeros((self.M, self.C))
 
+        wavelet_u = np.zeros(len(self.stan_input['wavelet_v']), dtype=int)
+        for iS, iY in enumerate(self.stan_input['wavelet_u'][1:]-1):
+            wavelet_u[iY:] += 1
+
         self.wavelet_args = [np.moveaxis(self.k, -1,0).astype(np.int64).copy(),np.moveaxis(self.n, -1,0).astype(np.int64).copy()] \
-                          + [self.stan_input[arg].copy() for arg in ['mu', 'sigma', 'wavelet_u', 'wavelet_v', 'wavelet_w']]\
+                          + [self.stan_input[arg].copy() for arg in ['mu', 'sigma']]\
+                          + [wavelet_u, self.stan_input['wavelet_v'].copy()-1, self.stan_input['wavelet_w'].copy()]\
                           + cholesky_args
-        self.wavelet_args[4]-=1
-        self.wavelet_args[5]-=1
 
     def _generate_args_ray(self, nsets=1, sparse=False):
 
@@ -279,6 +288,12 @@ class pyChisel(Chisel):
         P_ray = np.zeros(nsets, dtype=int) + self.P//nsets
         P_ray[:self.P - np.sum(P_ray)] += 1
         print('P sets: ', P_ray, np.sum(P_ray))
+
+        wavelet_u = np.zeros(len(self.stan_input['wavelet_v']), dtype=int)
+        for iS, iY in enumerate(self.stan_input['wavelet_u'][1:]-1):
+            wavelet_u[iY:] += 1
+        wavelet_v = self.stan_input['wavelet_v'].copy()-1
+        wavelet_w = self.stan_input['wavelet_w'].copy()
 
         self.wavelet_args_ray = []
         iP = 0
@@ -292,11 +307,9 @@ class pyChisel(Chisel):
             wavelet_args_set  = [np.moveaxis(self.k, -1,0).astype(np.int64)[iP:iP+P_ray[iset]].copy(),
                                  np.moveaxis(self.n, -1,0).astype(np.int64)[iP:iP+P_ray[iset]].copy()] \
                               + [self.stan_input[arg].copy() for arg in ['mu', 'sigma']] \
-                              + [self.stan_input['wavelet_u'][iP:iP+P_ray[iset]+1].copy() - self.stan_input['wavelet_u'][iP],] \
-                              + [self.stan_input[arg][int(self.stan_input['wavelet_u'][iP]-1):int(self.stan_input['wavelet_u'][iP+P_ray[iset]]-1)].copy() \
-                                                                        for arg in ['wavelet_v', 'wavelet_w']] \
+                              + [arg[int(self.stan_input['wavelet_u'][iP]-1):int(self.stan_input['wavelet_u'][iP+P_ray[iset]]-1)].copy() \
+                                                                        for arg in [wavelet_u,wavelet_v,wavelet_w]] \
                               + cholesky_args
-            wavelet_args_set[5] -= 1
 
             self.wavelet_args_ray.append(wavelet_args_set)
             iP += P_ray[iset]
