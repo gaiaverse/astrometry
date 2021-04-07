@@ -9,3 +9,4 @@ dev
 !*/StanModels/*.stan
 *.h5
 *.png
+*Test*

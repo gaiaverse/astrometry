@@ -57,8 +57,9 @@ if True:
     z0 = np.random.rand(pychisel.S, pychisel.M, pychisel.C)-0.5
     z0 = np.zeros((pychisel.S, pychisel.M, pychisel.C))
 
-    res = pychisel.minimize_ray(z0, ncores=2, method='Newton-CG', \
-                                  options={'disp':True, 'maxiter':50, 'xtol':1e-5})
+    #res = pychisel.minimize_ray(z0, ncores=2, method='Newton-CG', options={'disp':True, 'maxiter':50, 'xtol':1e-5})
+    res = pychisel.minimize_mp(z0, ncores=2, method='Newton-CG', options={'disp':True, 'maxiter':50, 'xtol':1e-5})
+    #res = pychisel.minimize(z0, method='Newton-CG', options={'disp':True, 'maxiter':50, 'xtol':1e-5})
 
     print(res)
 

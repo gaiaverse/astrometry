@@ -14,6 +14,8 @@ from PythonModels.wavelet_magnitude_colour_position import wavelet_magnitude_col
 global lnlike_iter
 global gnorm_iter
 global tinit
+global z_iter
+global evaluators
 
 def fcall(X):
     global tinit
@@ -31,7 +33,7 @@ def print_log(message, logfile="data/vault/asfe2/logs/default_log.txt"):
     print(message)
 
 
-@ray.remote
+#@ray.remote
 class evaluate():
 
     def __init__(self, P, S, M, C, M_subspace, C_subspace, wavelet_args,
@@ -51,7 +53,6 @@ class evaluate():
 
         self.x = np.zeros((self.P, self.M, self.C))
         self.lnL_grad = np.zeros((self.S, self.M_subspace, self.C_subspace))
-        #self.MC = np.zeros((self.M, self.C))
 
         self.tinit = time.time()
         self.lnlike_iter = 0.
@@ -63,8 +64,7 @@ class evaluate():
         x = np.zeros((self.P, self.M, self.C))
         lnL_grad = np.zeros((self.S, self.M_subspace, self.C_subspace))
 
-        lnL, lnL_grad = wavelet_magnitude_colour_position_sparse(z.reshape((self.S, self.M_subspace, self.C_subspace)), \
-                                                        self.M, self.C, self.P, *self.wavelet_args, x, lnL_grad)
+        lnL, lnL_grad = wavelet_magnitude_colour_position_sparse(z.reshape((self.S, self.M_subspace, self.C_subspace)), self.M, self.C, self.P, *self.wavelet_args, x, lnL_grad)
 
         return lnL, lnL_grad
 
@@ -81,7 +81,7 @@ class evaluate():
         self.gnorm_iter = np.sqrt(np.sum(grad**2))/(self.S * self.M_subspace * self.C_subspace)
         self.nfev += 1
 
-        return -lnL, -grad.flatten()
+        return lnL, grad.flatten()
 
     def save_progress(self, X):
 
@@ -95,6 +95,9 @@ class evaluate():
 
         self.save_progress(X)
         print_log(f't={int(time.time()-self.tinit):03d}, n={self.nfev:02d}, lnL={self.lnlike_iter:.0f}, gnorm={self.gnorm_iter:.5f}\n', logfile=self.logfile)
+
+def evaluate_likelihood(iz):
+    return evaluators[iz[0]].evaluate_likelihood(iz[1])
 
 
 class pyChisel(Chisel):
@@ -131,7 +134,8 @@ class pyChisel(Chisel):
             def likelihood(z):
                 evaluations = [e.evaluate_likelihood.remote(z) for e in evaluators]
                 combination = evaluators[0].merge_likelihoods.remote(ray.get(evaluations))
-                return ray.get(combination)
+                lnL, lnL_grad =  ray.get(combination)
+                return -lnL + 0.5*np.sum(z**2), -lnL_grad.flatten() + z
             callback=evaluators[0].fcall.remote
         if False:
             evaluators = [evaluate(self.P_ray[i], self.S, self.M, self.C, self.M_subspace, self.C_subspace, self.wavelet_args_ray[i]) for i in range(ncores-1)]
@@ -145,6 +149,60 @@ class pyChisel(Chisel):
         print('Running optimizer.')
         res = scipy.optimize.minimize(likelihood, z0.flatten(), method=method, jac=True, bounds=bounds, callback=callback, **scipy_kwargs)
         ray.shutdown()
+
+        print('Processing results.')
+        self.optimum_z = res['x'].reshape((self.S, self.M_subspace, self.C_subspace))
+        #self.optimum_b = self.stan_input['mu'][:,None,None] + self.stan_input['sigma'][:,None,None] * (self.cholesky_m @ self.optimum_z @ self.cholesky_c.T)
+
+        self.optimum_b, self.optimum_x = self._get_bx(self.optimum_z)
+        if self.nest: self.optimum_x = self._ring_to_nest(np.moveaxis(self.optimum_x, 0, -1))
+
+        # Save optimum to h5py
+        self.optimum_results_file = self.file_root+'_scipy_results.h5'
+        with h5py.File(self.stan_output_directory + self.optimum_results_file, 'w') as orf:
+            orf.create_dataset('opt_runtime', data = time.time()-tstart)
+            orf.create_dataset('lnP', data = -res['fun'])
+            orf.create_dataset('z', data = self.optimum_z, dtype = np.float64, compression = 'lzf', chunks = True)
+            orf.create_dataset('b', data = self.optimum_b, dtype = np.float64, compression = 'lzf', chunks = True)
+            orf.create_dataset('x', data = self.optimum_x, dtype = np.float64, compression = 'lzf', chunks = True)
+        print(f'Optimum values stored in {self.stan_output_directory + self.optimum_results_file}')
+
+        return res
+
+    def minimize_mp(self, z0, ncores=2, bounds=None, method='BFGS', **scipy_kwargs):
+
+        from multiprocessing import Pool
+
+        tstart = time.time()
+
+        logfile = '/data/asfe2/Projects/astrometry/PyOutput/'+self.file_root+'_log.txt'
+        savefile = '/data/asfe2/Projects/astrometry/PyOutput/'+self.file_root+'_progress.h'
+        if os.path.exists(savefile):
+            raise OSError(f"File {savefile} already exists, won't overwrite.")
+
+        print('Initialising arguments.')
+        self._generate_args(sparse=True)
+        self._generate_args_ray(nsets=ncores, sparse=True)
+
+        print('Initialising multiprocessing processes.')
+        global z_iter
+        z_iter = z0.flatten()
+        global evaluators
+        evaluators = [evaluate(self.P_ray[i], self.S, self.M, self.C, self.M_subspace, self.C_subspace, self.wavelet_args_ray[i], logfile=logfile, savefile=savefile) for i in range(ncores)]
+
+        with Pool(ncores) as pool:
+            icore = np.arange(ncores)
+
+            def likelihood(z):
+                evaluations = pool.map(evaluate_likelihood, zip(icore, np.repeat([z,],ncores, axis=0)))
+                lnL, lnL_grad =  evaluators[0].merge_likelihoods(evaluations)
+                return -lnL + 0.5*np.sum(z**2), -lnL_grad.flatten() + z
+            callback=evaluators[0].fcall
+
+            global tinit; tinit = time.time()
+
+            print('Running optimizer.')
+            res = scipy.optimize.minimize(likelihood, z0.flatten(), method=method, jac=True, bounds=bounds, callback=callback, **scipy_kwargs)
 
         print('Processing results.')
         self.optimum_z = res['x'].reshape((self.S, self.M_subspace, self.C_subspace))
@@ -180,7 +238,7 @@ class pyChisel(Chisel):
             lnL, grad = wavelet_magnitude_colour_position_sparse(z.reshape((self.S, self.M_subspace, self.C_subspace)), self.M, self.C, self.P, *self.wavelet_args, x, lnL_grad)
             global lnlike_iter; lnlike_iter = lnL
             global gnorm_iter; gnorm_iter = np.sum(np.abs(grad))
-            return -lnL, -grad.flatten()
+            return -lnL + 0.5*np.sum(z**2), -grad.flatten() + z
 
         global tinit
         tinit = time.time()
@@ -204,26 +262,35 @@ class pyChisel(Chisel):
 
         return res
 
-    def _evaluate_likelihood(self, z, ncores=1, generate=True):
+    def _evaluate_likelihood(self, z, ncores=1, generate=True, iset=-1):
 
         if generate:
             numba.set_num_threads(ncores)
             self._generate_args(sparse=True)
 
-        x = np.zeros((self.P, self.M, self.C))
         lnL_grad = np.zeros((self.S, self.M_subspace, self.C_subspace))
-        lnL, grad = wavelet_magnitude_colour_position_sparse(z.reshape((self.S, self.M_subspace, self.C_subspace)), self.M, self.C, self.P, *self.wavelet_args, x, lnL_grad)
+        if iset==-1:
+            x = np.zeros((self.P, self.M, self.C))
+            lnL, grad = wavelet_magnitude_colour_position_sparse(z.reshape((self.S, self.M_subspace, self.C_subspace)), self.M, self.C, self.P, *self.wavelet_args, x, lnL_grad)
+        else:
+            x = np.zeros((self.P_ray[iset], self.M, self.C))
+            lnL, grad = wavelet_magnitude_colour_position_sparse(z.reshape((self.S, self.M_subspace, self.C_subspace)), self.M, self.C, self.P_ray[iset], *self.wavelet_args_ray[iset], x, lnL_grad)
+
         return lnL, grad
 
     def _get_bx(self, z):
 
-        MC = np.zeros((self.M, self.C))
+        from numba.typed import List
+
+        wavelet = List(zip(*self.wavelet_args[4:7]))
+        cholesky_m = List(zip(*self.wavelet_args[7:10]))
+        cholesky_c = List(zip(*self.wavelet_args[10:13]))
 
         b = np.zeros((self.S, self.M, self.C))
-        b = wavelet_b_sparse(z.reshape((self.S, self.M_subspace, self.C_subspace)), self.M, self.C, self.S, *self.wavelet_args[2:], b, MC)
+        b = wavelet_b_sparse(z.reshape((self.S, self.M_subspace, self.C_subspace)), self.M, self.C, self.S, *self.wavelet_args[2:4], cholesky_m, cholesky_c, b)
 
         x = np.zeros((self.P, self.M, self.C))
-        x = wavelet_x_sparse(z.reshape((self.S, self.M_subspace, self.C_subspace)), self.M, self.C, self.P, *self.wavelet_args[2:], x, MC)
+        x = wavelet_x_sparse(z.reshape((self.S, self.M_subspace, self.C_subspace)), self.M, self.C, *self.wavelet_args[2:4], wavelet, cholesky_m, cholesky_c, x)
 
         return b, x
 
@@ -304,6 +371,7 @@ class pyChisel(Chisel):
                               + [arg[int(self.stan_input['wavelet_u'][iP]-1):int(self.stan_input['wavelet_u'][iP+P_ray[iset]]-1)].copy() \
                                                                         for arg in [wavelet_u,wavelet_v,wavelet_w]] \
                               + cholesky_args
+            wavelet_args_set[4]-=iP
 
             self.wavelet_args_ray.append(wavelet_args_set)
             iP += P_ray[iset]
