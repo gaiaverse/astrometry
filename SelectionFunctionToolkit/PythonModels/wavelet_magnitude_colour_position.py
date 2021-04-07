@@ -46,6 +46,8 @@ def wavelet_b_sparse(z, M, C, S, mu, sigma,
 
     return b
 
+
+
 @njit(parallel=parallel)
 def wavelet_magnitude_colour_position_sparse(z, M, C, P, k, n, mu, sigma,
                                                 wavelet_u, wavelet_v, wavelet_w,

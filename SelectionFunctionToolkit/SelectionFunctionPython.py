@@ -272,13 +272,11 @@ class pyChisel(Chisel):
         lnL_grad = np.zeros((self.S, self.M, self.C))
         x = np.zeros((self.M, self.C))
 
-        wavelet_u = np.zeros(len(self.stan_input['wavelet_v']), dtype=int)
-        for iS, iY in enumerate(self.stan_input['wavelet_u'][1:]-1):
-            wavelet_u[iY:] += 1
-
         self.wavelet_args = [np.moveaxis(self.k, -1,0).astype(np.int64).copy(),np.moveaxis(self.n, -1,0).astype(np.int64).copy()] \
                           + [self.stan_input[arg].copy() for arg in ['mu', 'sigma']]\
-                          + [wavelet_u, self.stan_input['wavelet_v'].copy()-1, self.stan_input['wavelet_w'].copy()]\
+                          + [self.stan_input['wavelet_un'].copy()-1,
+                             self.stan_input['wavelet_v'].copy()-1,
+                             self.stan_input['wavelet_w'].copy()]\
                           + cholesky_args
 
     def _generate_args_ray(self, nsets=1, sparse=False):
@@ -289,9 +287,7 @@ class pyChisel(Chisel):
         P_ray[:self.P - np.sum(P_ray)] += 1
         print('P sets: ', P_ray, np.sum(P_ray))
 
-        wavelet_u = np.zeros(len(self.stan_input['wavelet_v']), dtype=int)
-        for iS, iY in enumerate(self.stan_input['wavelet_u'][1:]-1):
-            wavelet_u[iY:] += 1
+        wavelet_u = self.stan_input['wavelet_un'].copy()-1
         wavelet_v = self.stan_input['wavelet_v'].copy()-1
         wavelet_w = self.stan_input['wavelet_w'].copy()
 
@@ -301,8 +297,6 @@ class pyChisel(Chisel):
 
             lnL_grad = np.zeros((self.S, self.M, self.C))
             x = np.zeros((self.M, self.C))
-
-            #print(self.stan_input['wavelet_u'][iP])
 
             wavelet_args_set  = [np.moveaxis(self.k, -1,0).astype(np.int64)[iP:iP+P_ray[iset]].copy(),
                                  np.moveaxis(self.n, -1,0).astype(np.int64)[iP:iP+P_ray[iset]].copy()] \

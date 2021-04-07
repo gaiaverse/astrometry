@@ -87,7 +87,7 @@ class Chisel(Base):
 
         # Initialise variables
         running_index = 0
-        needlet_w, needlet_v, needlet_u, needlet_j = [], [], [], []
+        needlet_w, needlet_v, needlet_u, needlet_un, needlet_j = [], [], [], [], []
         Y = np.zeros(npix)
         legendre = np.zeros((1+self.weighting.end(max(self.j)),npix))
 
@@ -99,6 +99,7 @@ class Chisel(Base):
                 needlet_w.append(np.ones(npix))
                 needlet_v.append(np.arange(npix))
                 needlet_u.append(0)
+                needlet_un.append(np.zeros(npix, dtype=np.uint64))
                 needlet_j.append(np.zeros(1))
                 running_index += npix
                 continue
@@ -123,6 +124,7 @@ class Chisel(Base):
                 needlet_w.append(Y[_significant])
                 needlet_v.append(_significant)
                 needlet_u.append(running_index)
+                needlet_un.append(np.zeros(_significant.size, dtype=np.uint64) +j+ipix_needle )
                 needlet_j.append(j*np.ones(self.order_to_npix(j)))
                 running_index += _significant.size
 
@@ -141,11 +143,21 @@ class Chisel(Base):
         wavelet_j = np.concatenate(needlet_j).astype(int)
         wavelet_n = wavelet_w.size
 
+        print('Expanding u')
+        @njit
+        def expand_u(wavelet_u, wavelet_un):
+            size = wavelet_u.size-1
+            for iS in range(size):
+                wavelet_un[wavelet_u[iS]:wavelet_u[iS+1]] = iS
+        wavelet_un = np.zeros(wavelet_v.size, dtype=np.uint64)
+        expand_u(wavelet_u, wavelet_un)
+
         # Save file
         save_kwargs = {'compression':"lzf", 'chunks':True, 'fletcher32':False, 'shuffle':True}
         with h5py.File(gsb_file, 'w') as f:
             f.create_dataset('wavelet_w', data = wavelet_w, dtype = np.float64, **save_kwargs)
             f.create_dataset('wavelet_v', data = wavelet_v, dtype = np.uint64, scaleoffset=0, **save_kwargs)
             f.create_dataset('wavelet_u', data = wavelet_u, dtype = np.uint64, scaleoffset=0, **save_kwargs)
+            f.create_dataset('wavelet_un', data = wavelet_un, dtype = np.uint64, scaleoffset=0, **save_kwargs)
             f.create_dataset('wavelet_n', data = wavelet_n)
             f.create_dataset('modes', data = wavelet_j, dtype = np.uint64, scaleoffset=0, **save_kwargs)

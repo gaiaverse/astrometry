@@ -9,7 +9,7 @@ import sys, h5py, numpy as np, scipy.stats, healpy as hp, tqdm
 # M = 85; C = 1; nside=64; jmax=4; B=2.; ncores=30:         32Gb
 
 eps=1e-10
-M = 17; C = 1; nside=8; jmax=2; B=3.
+M = 17; C = 1; nside=8; jmax=2; B=4.
 
 box={};
 with h5py.File('/data/asfe2/Projects/astrometry/gaia3_astcounts_arr_hpx128.h', 'r') as hf:
