@@ -105,6 +105,14 @@ class Base:
             orf.create_dataset('Clim', data = self.Clim, dtype = np.float64)
         print(f'Optimum values stored in {self.stan_output_directory + self.optimum_results_file}')
 
+    def sample(self, number_of_iterations=1000, number_of_warmups=100, threads=5, chains=4, inits=2):
+
+        #_stan_samples = self.stan_model.sample(data=self.stan_input, chains=chains, parallel_chains=chains, show_progress=True,
+        #                                       iter_warmup=number_of_warmups, iter_sampling=number_of_iterations, output_dir=self.stan_output_directory)
+
+        _stan_samples = self.stan_model.sample(data=self.stan_input, chains=chains, parallel_chains=chains, threads_per_chain=threads, show_progress=True, #refresh=10,
+                                              iter_warmup=number_of_warmups, iter_sampling=number_of_iterations, output_dir=self.stan_output_directory)
+
     def print_convergence(self, number_of_lines = 2):
         for line in self._tail(self.stan_output_directory + self.optimum_convergence_file,number_of_lines):
             print(line)
@@ -238,7 +246,7 @@ class Base:
         _model_file += '_sparse' if self.sparse else ''
 
         from cmdstanpy import CmdStanModel
-        self.stan_model = CmdStanModel(stan_file = self.stan_model_directory+_model_file+'.stan')
+        self.stan_model = CmdStanModel(stan_file = self.stan_model_directory+_model_file+'.stan', cpp_options={"STAN_THREADS": True})
 
     def _construct_stan_input(self):
 

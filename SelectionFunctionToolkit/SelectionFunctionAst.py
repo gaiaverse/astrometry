@@ -8,20 +8,25 @@ import sys, h5py, numpy as np, scipy.stats, healpy as hp, tqdm
 
 eps=1e-10
 
-M = 17
+M = 85
 C = 1
-nside=32
+nside=64
+B = 3.0
 
 box={};
 with h5py.File('/data/asfe2/Projects/astrometry/gaia3_astcounts_arr_hpx128.h', 'r') as hf:
     box['n'] = hf['n'][...]
     box['k'] = hf['k'][...]
     M_bins = hf['magbins'][...]
+    C_bins = np.array([-100,100])
 print("Mag bins:", np.linspace(M_bins[0], M_bins[-1], M+1))
 
 lengthscale = 0.3
-lengthscale_m = lengthscale/(M_bins[1]-M_bins[0])
-lengthscale_c = 1.
+# Calculate lengthscales in units of bins
+M_original, C_original = box['k'].shape[:2]
+lengthscale_m = lengthscale/((M_bins[1]-M_bins[0])*(M_original/M))
+lengthscale_c = lengthscale/((C_bins[1]-C_bins[0])*(C_original/C))
+print(f"lengthscales m:{lengthscale_m} , c:{lengthscale_c}")
 
 
 if True:
@@ -42,10 +47,10 @@ if True:
     # jmax:6, nside:128, M:85, tol-1e-4  - ~ ? Gb, ? s
     # jmax:6, nside:32,  M:17, tol-1e-2  - ~ ? Gb, ? s
 
-    jmax=4
-    file_root = f"chisquare_jmax{jmax}_nside{nside}_M{M}_C{C}_l{lengthscale}"
+    jmax=6
+    file_root = f"chisquare_jmax{jmax}_nside{nside}_M{M}_C{C}_l{lengthscale}_B{B}"
     print(file_root)
-    basis_options = {'needlet':'chisquare', 'j':jmax, 'B':2.0, 'p':1.0, 'wavelet_tol':1e-10}
+    basis_options = {'needlet':'chisquare', 'j':jmax, 'B':B, 'p':1.0, 'wavelet_tol':1e-2}
     # Import chisel
     from SelectionFunctionChisel import Chisel
     chisel = Chisel(box['k'], box['n'],
@@ -63,12 +68,13 @@ if True:
                     sigma = [-0.81489922, -2.55429039],
                     Mlim = [M_bins[0], M_bins[-1]],
                     Clim = [-100,100],
-                    spherical_wavelets_directory='/data/asfe2/Projects/astrometry/SphericalWavelets/',
+                    spherical_basis_directory='/data/asfe2/Projects/astrometry/SphericalWavelets/',
                     stan_output_directory='/data/asfe2/Projects/astrometry/StanOutput/'
                     )
 
     # Run hammer
     chisel.optimize(number_of_iterations = 10000)
+    #chisel.sample(number_of_iterations=1000, threads=1)
 
     # Print convergence information
     chisel.print_convergence(number_of_lines = 10)

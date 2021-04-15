@@ -57,6 +57,7 @@ class evaluate():
         self.lnlike_iter = 0.
         self.gnorm_iter = 0.
         self.nfev = 0
+        self.nfev_print = -100
 
     def evaluate_likelihood(self, z):
 
@@ -92,8 +93,10 @@ class evaluate():
 
     def fcall(self, X):
 
-        self.save_progress(X)
-        print_log(f't={int(time.time()-self.tinit):03d}, n={self.nfev:02d}, lnL={self.lnlike_iter:.0f}, gnorm={self.gnorm_iter:.5f}\n', logfile=self.logfile)
+        if self.nfev-self.nfev_print>10:
+            self.save_progress(X)
+            print_log(f't={int(time.time()-self.tinit):03d}, n={self.nfev:02d}, lnL={self.lnlike_iter:.0f}, gnorm={self.gnorm_iter:.5f}\n', logfile=self.logfile)
+            self.nfev_print = self.nfev
 
 def evaluate_likelihood(iz):
     return evaluators[iz[0]].evaluate_likelihood(iz[1])
@@ -115,7 +118,7 @@ class pyChisel(Chisel):
 
         tstart = time.time()
 
-        numba.set_num_threads(1)
+        # numba.set_num_threads(1)
         logfile = '/data/asfe2/Projects/astrometry/PyOutput/'+self.file_root+'_log.txt'
         savefile = '/data/asfe2/Projects/astrometry/PyOutput/'+self.file_root+'_progress.h'
         if os.path.exists(savefile):
@@ -123,13 +126,13 @@ class pyChisel(Chisel):
 
         print('Initialising arguments.')
         self._generate_args(sparse=True)
-        self._generate_args_ray(nsets=ncores-1, sparse=True)
+        self._generate_args_ray(nsets=ncores, sparse=True)
 
         if True:
             print('Initialising ray processes.')
             ray.shutdown()
             ray.init()
-            evaluators = [evaluate.remote(self.P_ray[i], self.S, self.M, self.C, self.M_subspace, self.C_subspace, self.wavelet_args_ray[i], logfile=logfile, savefile=savefile) for i in range(ncores-1)]
+            evaluators = [evaluate.remote(self.P_ray[i], self.S, self.M, self.C, self.M_subspace, self.C_subspace, self.wavelet_args_ray[i], logfile=logfile, savefile=savefile) for i in range(ncores)]
             def likelihood(z):
                 evaluations = [e.evaluate_likelihood.remote(z) for e in evaluators]
                 combination = evaluators[0].merge_likelihoods.remote(ray.get(evaluations))
@@ -145,6 +148,9 @@ class pyChisel(Chisel):
 
         global tinit; tinit = time.time()
 
+        print('Initial parameters.')
+        likelihood(z0)
+        callback(z0)
         print('Running optimizer.')
         res = scipy.optimize.minimize(likelihood, z0.flatten(), method=method, jac=True, bounds=bounds, callback=callback, **scipy_kwargs)
         ray.shutdown()
@@ -160,9 +166,11 @@ class pyChisel(Chisel):
         self.optimum_results_file = self.file_root+'_scipy_results.h5'
         self.save_h5(time.time()-tstart)
 
+        print_log(str(res), logfile=logfile)
+
         return res
 
-    def minimize_mp(self, z0, ncores=2, bounds=None, method='BFGS', **scipy_kwargs):
+    def minimize_mp(self, z0, ncores=2, bounds=None, method='BFGS', force=False, nfev_init=0, **scipy_kwargs):
 
         tstart = time.time()
         from multiprocessing import Pool
@@ -170,7 +178,7 @@ class pyChisel(Chisel):
         logfile = '/data/asfe2/Projects/astrometry/PyOutput/'+self.file_root+'_log.txt'
         savefile = '/data/asfe2/Projects/astrometry/PyOutput/'+self.file_root+'_progress.h'
         if os.path.exists(savefile):
-            raise OSError(f"File {savefile} already exists, won't overwrite.")
+            if not force: raise OSError(f"File {savefile} already exists, won't overwrite.")
 
         print('Initialising arguments.')
         self._generate_args(sparse=True)
@@ -179,6 +187,7 @@ class pyChisel(Chisel):
         print('Initialising multiprocessing processes.')
         global evaluators
         evaluators = [evaluate(self.P_ray[i], self.S, self.M, self.C, self.M_subspace, self.C_subspace, self.wavelet_args_ray[i], logfile=logfile, savefile=savefile) for i in range(ncores)]
+        evaluators[0].nfev=nfev_init
 
         with Pool(ncores) as pool:
             icore = np.arange(ncores)
@@ -191,6 +200,8 @@ class pyChisel(Chisel):
 
             global tinit; tinit = time.time()
 
+            print('z0 likelihood')
+            likelihood(z0); evaluators[0].fcall(z0)
             print('Running optimizer.')
             res = scipy.optimize.minimize(likelihood, z0.flatten(), method=method, jac=True, bounds=bounds, callback=callback, **scipy_kwargs)
 
@@ -203,6 +214,8 @@ class pyChisel(Chisel):
         # Save optimum to h5py
         self.optimum_results_file = self.file_root+'_scipy_results.h5'
         self.save_h5(time.time()-tstart)
+
+        print_log(str(res), logfile=logfile)
 
         return res
 
@@ -241,7 +254,7 @@ class pyChisel(Chisel):
     def _evaluate_likelihood(self, z, ncores=1, generate=True, iset=-1):
 
         if generate:
-            numba.set_num_threads(ncores)
+            # numba.set_num_threads(ncores)
             self._generate_args(sparse=True)
 
         lnL_grad = np.zeros((self.S, self.M_subspace, self.C_subspace))
