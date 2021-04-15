@@ -89,10 +89,14 @@ class Base:
         shutil.move(self.stan_output_directory + str(_stan_optimum).split('/')[-1], self.stan_output_directory + self.optimum_convergence_file)
         print(f'Convergence information stored in {self.stan_output_directory + self.optimum_convergence_file}')
 
-        # Save optimum to h5py
         self.optimum_results_file = self.file_root+'_results.h5'
+        self.save_h5(t2-t1)
+
+    def save_h5(self, runtime):
+
+        # Save optimum to h5py
         with h5py.File(self.stan_output_directory + self.optimum_results_file, 'w') as orf:
-            orf.create_dataset('opt_runtime', data = t2-t1)
+            orf.create_dataset('opt_runtime', data = runtime)
             orf.create_dataset('lnP', data = self.optimum_lnp)
             orf.create_dataset('z', data = self.optimum_z, dtype = np.float64, compression = 'lzf', chunks = True)
             orf.create_dataset('b', data = self.optimum_b, dtype = np.float64, compression = 'lzf', chunks = True)

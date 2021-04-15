@@ -14,7 +14,6 @@ from PythonModels.wavelet_magnitude_colour_position import wavelet_magnitude_col
 global lnlike_iter
 global gnorm_iter
 global tinit
-global z_iter
 global evaluators
 
 def fcall(X):
@@ -151,29 +150,22 @@ class pyChisel(Chisel):
         ray.shutdown()
 
         print('Processing results.')
+        self.optimum_lnp = -res['fun']
         self.optimum_z = res['x'].reshape((self.S, self.M_subspace, self.C_subspace))
         #self.optimum_b = self.stan_input['mu'][:,None,None] + self.stan_input['sigma'][:,None,None] * (self.cholesky_m @ self.optimum_z @ self.cholesky_c.T)
 
         self.optimum_b, self.optimum_x = self._get_bx(self.optimum_z)
         if self.nest: self.optimum_x = self._ring_to_nest(np.moveaxis(self.optimum_x, 0, -1))
 
-        # Save optimum to h5py
         self.optimum_results_file = self.file_root+'_scipy_results.h5'
-        with h5py.File(self.stan_output_directory + self.optimum_results_file, 'w') as orf:
-            orf.create_dataset('opt_runtime', data = time.time()-tstart)
-            orf.create_dataset('lnP', data = -res['fun'])
-            orf.create_dataset('z', data = self.optimum_z, dtype = np.float64, compression = 'lzf', chunks = True)
-            orf.create_dataset('b', data = self.optimum_b, dtype = np.float64, compression = 'lzf', chunks = True)
-            orf.create_dataset('x', data = self.optimum_x, dtype = np.float64, compression = 'lzf', chunks = True)
-        print(f'Optimum values stored in {self.stan_output_directory + self.optimum_results_file}')
+        self.save_h5(time.time()-tstart)
 
         return res
 
     def minimize_mp(self, z0, ncores=2, bounds=None, method='BFGS', **scipy_kwargs):
 
-        from multiprocessing import Pool
-
         tstart = time.time()
+        from multiprocessing import Pool
 
         logfile = '/data/asfe2/Projects/astrometry/PyOutput/'+self.file_root+'_log.txt'
         savefile = '/data/asfe2/Projects/astrometry/PyOutput/'+self.file_root+'_progress.h'
@@ -185,8 +177,6 @@ class pyChisel(Chisel):
         self._generate_args_ray(nsets=ncores, sparse=True)
 
         print('Initialising multiprocessing processes.')
-        global z_iter
-        z_iter = z0.flatten()
         global evaluators
         evaluators = [evaluate(self.P_ray[i], self.S, self.M, self.C, self.M_subspace, self.C_subspace, self.wavelet_args_ray[i], logfile=logfile, savefile=savefile) for i in range(ncores)]
 
@@ -205,32 +195,23 @@ class pyChisel(Chisel):
             res = scipy.optimize.minimize(likelihood, z0.flatten(), method=method, jac=True, bounds=bounds, callback=callback, **scipy_kwargs)
 
         print('Processing results.')
+        self.optimum_lnp = -res['fun']
         self.optimum_z = res['x'].reshape((self.S, self.M_subspace, self.C_subspace))
-        #self.optimum_b = self.stan_input['mu'][:,None,None] + self.stan_input['sigma'][:,None,None] * (self.cholesky_m @ self.optimum_z @ self.cholesky_c.T)
-
         self.optimum_b, self.optimum_x = self._get_bx(self.optimum_z)
         if self.nest: self.optimum_x = self._ring_to_nest(np.moveaxis(self.optimum_x, 0, -1))
 
         # Save optimum to h5py
         self.optimum_results_file = self.file_root+'_scipy_results.h5'
-        with h5py.File(self.stan_output_directory + self.optimum_results_file, 'w') as orf:
-            orf.create_dataset('opt_runtime', data = time.time()-tstart)
-            orf.create_dataset('lnP', data = -res['fun'])
-            orf.create_dataset('z', data = self.optimum_z, dtype = np.float64, compression = 'lzf', chunks = True)
-            orf.create_dataset('b', data = self.optimum_b, dtype = np.float64, compression = 'lzf', chunks = True)
-            orf.create_dataset('x', data = self.optimum_x, dtype = np.float64, compression = 'lzf', chunks = True)
-        print(f'Optimum values stored in {self.stan_output_directory + self.optimum_results_file}')
+        self.save_h5(time.time()-tstart)
 
         return res
 
     def minimize(self, z0, ncores=2, bounds=None, method='BFGS', **scipy_kwargs):
 
         tstart = time.time()
-        self._generate_args(sparse=True)
 
-        print('Number of threads: ', numba.get_num_threads())
-        numba.set_num_threads(ncores)
-        print('Number of threads: ', numba.get_num_threads())
+        print('Initialising arguments.')
+        self._generate_args(sparse=True)
 
         def likelihood(z):
             x = np.zeros((self.P, self.M, self.C))
@@ -245,20 +226,15 @@ class pyChisel(Chisel):
 
         res = scipy.optimize.minimize(likelihood, z0.flatten(), method=method, jac=True, bounds=bounds, callback=fcall, **scipy_kwargs)
 
+        print('Processing results.')
+        self.optimum_lnp = -res['fun']
         self.optimum_z = res['x'].reshape((self.S, self.M_subspace, self.C_subspace))
         self.optimum_b, self.optimum_x = self._get_bx(self.optimum_z)
-
         if self.nest: self.optimum_x = self._ring_to_nest(np.moveaxis(self.optimum_x, 0, -1))
 
         # Save optimum to h5py
         self.optimum_results_file = self.file_root+'_scipy_results.h5'
-        with h5py.File(self.stan_output_directory + self.optimum_results_file, 'w') as orf:
-            orf.create_dataset('opt_runtime', data = time.time()-tstart)
-            orf.create_dataset('lnP', data = -res['fun'])
-            orf.create_dataset('z', data = self.optimum_z, dtype = np.float64, compression = 'lzf', chunks = True)
-            orf.create_dataset('b', data = self.optimum_b, dtype = np.float64, compression = 'lzf', chunks = True)
-            orf.create_dataset('x', data = self.optimum_x, dtype = np.float64, compression = 'lzf', chunks = True)
-        print(f'Optimum values stored in {self.stan_output_directory + self.optimum_results_file}')
+        self.save_h5(time.time()-tstart)
 
         return res
 
