@@ -30,10 +30,9 @@ class Chisel(Base):
             from SelectionFunctionUtils import littlewoodpaley
             self.weighting = littlewoodpaley(B = self.B)
 
-
     def _process_sigma_basis_specific(self,sigma):
         assert len(sigma) == 2
-        power_spectrum = lambda l: np.sqrt(np.exp(sigma[0])*np.power(1.0+l,sigma[1]))
+        power_spectrum = lambda l: np.power(1.0+l,sigma[1])
 
         _sigma = np.zeros(self.S)
         running_index = 0
@@ -49,7 +48,7 @@ class Chisel(Base):
             start = self.weighting.start(j)
             end = self.weighting.end(j)
             modes = np.arange(start, end + 1, dtype = 'float')
-            window = self.weighting.window_function(modes,j)**2*power_spectrum(modes)*(2.0*modes+1.0)/npix_needle
+            window = self.weighting.window_function(modes,j)**2*(2.0*modes+1.0) * power_spectrum(modes) # /npix_needle
 
             _sigma[running_index:running_index+npix_needle] = np.sqrt(window.sum())
             running_index += npix_needle
@@ -91,7 +90,7 @@ class Chisel(Base):
         Y = np.zeros(npix)
         legendre = np.zeros((1+self.weighting.end(max(self.j)),npix))
 
-        for j in self.j:
+        for ineedlet, j in enumerate(self.j):
 
             print(f'Working on order {j}.')
 
@@ -110,7 +109,7 @@ class Chisel(Base):
             start = self.weighting.start(j)
             end = self.weighting.end(j)
             modes = np.arange(start, end + 1, dtype = 'float')
-            window = self.weighting.window_function(modes,j)*(2.0*modes+1.0)/np.sqrt(4.0*np.pi*npix_needle)
+            window = self.weighting.window_function(modes,j)*(2.0*modes+1.0)/np.sqrt(4.0*np.pi) / self.weighting.needlet_normalisaiton[ineedlet]
 
             for ipix_needle in tqdm.tqdm(range(npix_needle),file=sys.stdout):
 
@@ -145,12 +144,12 @@ class Chisel(Base):
 
         print('Expanding u')
         @njit
-        def expand_u(wavelet_u, wavelet_un):
+        def expand_u(wavelet_u, wavelet_U):
             size = wavelet_u.size-1
             for iS in range(size):
-                wavelet_un[wavelet_u[iS]:wavelet_u[iS+1]] = iS
-        wavelet_un = np.zeros(wavelet_v.size, dtype=np.uint64)
-        expand_u(wavelet_u, wavelet_un)
+                wavelet_U[wavelet_u[iS]:wavelet_u[iS+1]] = iS
+        wavelet_U = np.zeros(wavelet_v.size, dtype=np.uint64)
+        expand_u(wavelet_u, wavelet_U)
 
         # Save file
         save_kwargs = {'compression':"lzf", 'chunks':True, 'fletcher32':False, 'shuffle':True}
@@ -158,6 +157,6 @@ class Chisel(Base):
             f.create_dataset('wavelet_w', data = wavelet_w, dtype = np.float64, **save_kwargs)
             f.create_dataset('wavelet_v', data = wavelet_v, dtype = np.uint64, scaleoffset=0, **save_kwargs)
             f.create_dataset('wavelet_u', data = wavelet_u, dtype = np.uint64, scaleoffset=0, **save_kwargs)
-            f.create_dataset('wavelet_un', data = wavelet_un, dtype = np.uint64, scaleoffset=0, **save_kwargs)
+            f.create_dataset('wavelet_U', data = wavelet_U, dtype = np.uint64, scaleoffset=0, **save_kwargs)
             f.create_dataset('wavelet_n', data = wavelet_n)
             f.create_dataset('modes', data = wavelet_j, dtype = np.uint64, scaleoffset=0, **save_kwargs)

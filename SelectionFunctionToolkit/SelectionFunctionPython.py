@@ -68,6 +68,18 @@ class evaluate():
 
         return lnL, lnL_grad
 
+    def evaluate_x(self, z):
+
+        from numba.typed import List
+        wavelet = List(zip(*self.wavelet_args[4:7]))
+        cholesky_m = List(zip(*self.wavelet_args[7:10]))
+        cholesky_c = List(zip(*self.wavelet_args[10:13]))
+
+        x = np.zeros((self.P, self.M, self.C))
+        x = wavelet_x_sparse(z.reshape((self.S, self.M_subspace, self.C_subspace)), self.M, self.C, *self.wavelet_args[2:4], wavelet, cholesky_m, cholesky_c, x)
+
+        return x
+
     def merge_likelihoods(self, evaluations):
 
         lnL=0.
@@ -100,6 +112,8 @@ class evaluate():
 
 def evaluate_likelihood(iz):
     return evaluators[iz[0]].evaluate_likelihood(iz[1])
+def evaluate_x(iz):
+    return iz[0], evaluators[iz[0]].evaluate_x(iz[1])
 
 
 class pyChisel(Chisel):
@@ -270,18 +284,51 @@ class pyChisel(Chisel):
     def _get_bx(self, z):
 
         from numba.typed import List
-
+        print('Setting cholesky arguments')
         wavelet = List(zip(*self.wavelet_args[4:7]))
         cholesky_m = List(zip(*self.wavelet_args[7:10]))
         cholesky_c = List(zip(*self.wavelet_args[10:13]))
 
+        print('Get b')
         b = np.zeros((self.S, self.M, self.C))
         b = wavelet_b_sparse(z.reshape((self.S, self.M_subspace, self.C_subspace)), self.M, self.C, self.S, *self.wavelet_args[2:4], cholesky_m, cholesky_c, b)
-
+        print('Get x')
         x = np.zeros((self.P, self.M, self.C))
         x = wavelet_x_sparse(z.reshape((self.S, self.M_subspace, self.C_subspace)), self.M, self.C, *self.wavelet_args[2:4], wavelet, cholesky_m, cholesky_c, x)
 
         return b, x
+
+    def _get_bx_mp(self, z, ncores=2):
+
+        tstart = time.time()
+        from multiprocessing import Pool
+        from numba.typed import List
+
+        print('Initialising arguments.')
+        self._generate_args(sparse=True)
+        self._generate_args_ray(nsets=ncores, sparse=True)
+
+        print('Setting cholesky arguments')
+        cholesky_m = List(zip(*self.wavelet_args[7:10]))
+        cholesky_c = List(zip(*self.wavelet_args[10:13]))
+
+        print('Getting b')
+        b = np.zeros((self.S, self.M, self.C))
+        b = wavelet_b_sparse(z.reshape((self.S, self.M_subspace, self.C_subspace)), self.M, self.C, self.S, *self.wavelet_args[2:4], cholesky_m, cholesky_c, b)
+        self.optimum_b = b.copy()
+
+        print('Initialising multiprocessing processes.')
+        global evaluators
+        evaluators = [evaluate(self.P_ray[i], self.S, self.M, self.C, self.M_subspace, self.C_subspace, self.wavelet_args_ray[i], logfile="Bad_directory", savefile="Bad_directory") for i in range(ncores)]
+
+        icore = np.arange(ncores)
+        with Pool(ncores) as pool:
+            evaluations = pool.map(evaluate_x, zip(icore, np.repeat([z,],ncores, axis=0)))
+
+        self.optimum_x = np.concatenate([evaluations[ii][1] for ii in icore])
+        print([evaluations[ii][0] for ii in icore])
+        if self.nest: self.optimum_x = self._ring_to_nest(np.moveaxis(self.optimum_x, 0, -1))
+
 
     def _cholesky_args(self, sparse=False):
 
@@ -330,7 +377,7 @@ class pyChisel(Chisel):
 
         self.wavelet_args = [np.moveaxis(self.k, -1,0).astype(np.int64).copy(),np.moveaxis(self.n, -1,0).astype(np.int64).copy()] \
                           + [self.stan_input[arg].copy() for arg in ['mu', 'sigma']]\
-                          + [self.stan_input['wavelet_un'].copy()-1,
+                          + [self.stan_input['wavelet_U'].copy()-1,
                              self.stan_input['wavelet_v'].copy()-1,
                              self.stan_input['wavelet_w'].copy()]\
                           + cholesky_args
@@ -343,7 +390,7 @@ class pyChisel(Chisel):
         P_ray[:self.P - np.sum(P_ray)] += 1
         print('P sets: ', P_ray, np.sum(P_ray))
 
-        wavelet_u = self.stan_input['wavelet_un'].copy()-1
+        wavelet_u = self.stan_input['wavelet_U'].copy()-1
         wavelet_v = self.stan_input['wavelet_v'].copy()-1
         wavelet_w = self.stan_input['wavelet_w'].copy()
 
