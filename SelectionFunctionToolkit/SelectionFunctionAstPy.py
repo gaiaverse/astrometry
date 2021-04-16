@@ -9,7 +9,7 @@ import sys, h5py, numpy as np, scipy.stats, healpy as hp, tqdm
 # M = 85; C = 1; nside=64; jmax=4; B=2.; ncores=30:         32Gb
 
 eps=1e-10
-M = 17; C = 1; nside=8; jmax=3; B=3.
+M = 17; C = 1; nside=2; jmax=2; B=3.
 
 box={};
 with h5py.File('/data/asfe2/Projects/astrometry/gaia3_astcounts_arr_hpx128.h', 'r') as hf:
@@ -27,7 +27,7 @@ lengthscale_c = lengthscale/((C_bins[1]-C_bins[0])*(C_original/C))
 print(f"lengthscales m:{lengthscale_m} , c:{lengthscale_c}")
 
 
-file_root = f"chisquare_jmax{jmax}_nside{nside}_M{M}_C{C}_l{lengthscale}_B{B}"
+file_root = f"chisquare_jmax{jmax}_nside{nside}_M{M}_C{C}_l{lengthscale}_B{B}_PS"
 print(file_root)
 basis_options = {'needlet':'chisquare', 'j':jmax, 'B':B, 'p':1.0, 'wavelet_tol':1e-2}
 
@@ -58,8 +58,11 @@ if True:
     z0 = np.zeros((pychisel.S, pychisel.M, pychisel.C))
 
     #res = pychisel.minimize_ray(z0, ncores=2, method='Newton-CG', options={'disp':True, 'maxiter':50, 'xtol':1e-5})
-    res = pychisel.minimize_mp(z0, ncores=2, method='Newton-CG', options={'disp':True, 'maxiter':50, 'xtol':1e-4})
-    #res = pychisel.minimize(z0, method='Newton-CG', options={'disp':True, 'maxiter':50, 'xtol':1e-5})
+    #res = pychisel.minimize_mp(z0, ncores=2, method='Newton-CG', options={'disp':True, 'maxiter':50, 'xtol':1e-4})
+    # res = pychisel.minimize(z0, method='L-BFGS-B', options={'disp':True, 'maxiter':50, 'xtol':1e-5})
+
+    bounds=np.zeros((len(z0.flatten()), 2)); bounds[:,0]=-50; bounds[:,1]=50
+    res = pychisel.minimize(z0, bounds=bounds, method='L-BFGS-B', options={'disp':False, 'maxiter':1000, 'ftol':1e-5, 'gtol':1})
 
     print(res)
 

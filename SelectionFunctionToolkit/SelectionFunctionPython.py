@@ -317,7 +317,7 @@ class pyChisel(Chisel):
 
         self.wavelet_args = [np.moveaxis(self.k, -1,0).astype(np.int64).copy(),np.moveaxis(self.n, -1,0).astype(np.int64).copy()] \
                           + [self.stan_input[arg].copy() for arg in ['mu', 'sigma']]\
-                          + [self.stan_input['wavelet_un'].copy()-1,
+                          + [self.stan_input['wavelet_U'].copy()-1,
                              self.stan_input['wavelet_v'].copy()-1,
                              self.stan_input['wavelet_w'].copy()]\
                           + cholesky_args
@@ -330,7 +330,7 @@ class pyChisel(Chisel):
         P_ray[:self.P - np.sum(P_ray)] += 1
         print('P sets: ', P_ray, np.sum(P_ray))
 
-        wavelet_u = self.stan_input['wavelet_un'].copy()-1
+        wavelet_u = self.stan_input['wavelet_U'].copy()-1
         wavelet_v = self.stan_input['wavelet_v'].copy()-1
         wavelet_w = self.stan_input['wavelet_w'].copy()
 
