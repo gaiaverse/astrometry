@@ -55,7 +55,7 @@ class Chisel(Base):
 
         return _sigma
 
-    def _generate_spherical_basis(self,gsb_file):
+    def _generate_spherical_basis(self,gsb_file, coords=None):
 
         # Import dependencies
         from numba import njit
@@ -79,8 +79,12 @@ class Chisel(Base):
             Y[:] = np.dot(window,legendre[start:end+1])
 
         # Compute locations of pixels
-        npix = self.nside_to_npix(nside)
-        colat, lon = np.array(hp.pix2ang(nside=nside,ipix=np.arange(npix),lonlat=False))
+        if coords is None:
+            npix = self.nside_to_npix(nside)
+            colat, lon = np.array(hp.pix2ang(nside=nside,ipix=np.arange(npix),lonlat=False))
+        else:
+            colat, lon = coords
+            npix = len(colat)
         cos_colat, sin_colat = np.cos(colat), np.sin(colat)
         cos_lon, sin_lon = np.cos(lon), np.sin(lon)
 
@@ -151,12 +155,14 @@ class Chisel(Base):
         wavelet_U = np.zeros(wavelet_v.size, dtype=np.uint64)
         expand_u(wavelet_u, wavelet_U)
 
-        # Save file
-        save_kwargs = {'compression':"lzf", 'chunks':True, 'fletcher32':False, 'shuffle':True}
-        with h5py.File(gsb_file, 'w') as f:
-            f.create_dataset('wavelet_w', data = wavelet_w, dtype = np.float64, **save_kwargs)
-            f.create_dataset('wavelet_v', data = wavelet_v, dtype = np.uint64, scaleoffset=0, **save_kwargs)
-            f.create_dataset('wavelet_u', data = wavelet_u, dtype = np.uint64, scaleoffset=0, **save_kwargs)
-            f.create_dataset('wavelet_U', data = wavelet_U, dtype = np.uint64, scaleoffset=0, **save_kwargs)
-            f.create_dataset('wavelet_n', data = wavelet_n)
-            f.create_dataset('modes', data = wavelet_j, dtype = np.uint64, scaleoffset=0, **save_kwargs)
+        if coords is None:
+            # Save file
+            save_kwargs = {'compression':"lzf", 'chunks':True, 'fletcher32':False, 'shuffle':True}
+            with h5py.File(gsb_file, 'w') as f:
+                f.create_dataset('wavelet_w', data = wavelet_w, dtype = np.float64, **save_kwargs)
+                f.create_dataset('wavelet_v', data = wavelet_v, dtype = np.uint64, scaleoffset=0, **save_kwargs)
+                f.create_dataset('wavelet_u', data = wavelet_u, dtype = np.uint64, scaleoffset=0, **save_kwargs)
+                f.create_dataset('wavelet_U', data = wavelet_U, dtype = np.uint64, scaleoffset=0, **save_kwargs)
+                f.create_dataset('wavelet_n', data = wavelet_n)
+                f.create_dataset('modes', data = wavelet_j, dtype = np.uint64, scaleoffset=0, **save_kwargs)
+        else: return Y
