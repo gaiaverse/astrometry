@@ -107,24 +107,13 @@ class chisquare:
         self.normalisation = np.ones(self.lmax+1)
 
         if self.normalise == True:
+            jinf = np.arange(1,200)
             for l in range(1,self.lmax+1):
-                self.normalisation[l] = 1.0/np.sum(np.square(self.window_function(l,self.j)))
+                self.normalisation[l] = 1.0/np.sum(np.square(self.window_function(l,jinf)))
 
     def compute_needlet_normalisation(self):
-        from numba import njit
 
         self.needlet_normalisaiton = np.ones(len(self.j)+1)
-
-        # Function to compute needlet across sky
-        @njit
-        def pixel_peak (window, start, end, legendre):
-            '''Return value of needlet normalization.'''
-            legendre[0] = 1.0
-            legendre[1] = 1.0
-            for cur_l in range(2, end + 1):
-                legendre[cur_l] = (((2 * cur_l - 1) * legendre[cur_l - 1] - (cur_l - 1) * legendre[cur_l - 2])) / cur_l
-            return np.dot(window,legendre[start:end+1])
-        legendre = np.zeros((1+self.end(max(self.j))))
 
         for ineedlet, j in enumerate(self.j):
             if j==-1:
@@ -133,14 +122,10 @@ class chisquare:
 
             start = self.start(j)
             end = self.end(j)
-
-            #npix_needle = self.order_to_npix(j)
-            start = self.start(j)
-            end = self.end(j)
             modes = np.arange(start, end + 1, dtype = 'float')
             window = self.window_function(modes,j)*(2.0*modes+1.0)/np.sqrt(4.0*np.pi)#*npix_needle)
 
-            self.needlet_normalisaiton[ineedlet] = pixel_peak(window = window, start = start, end = end, legendre = legendre)
+            self.needlet_normalisaiton[ineedlet] = np.sum(window)
 
     def start(self, j):
         return 1

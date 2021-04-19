@@ -48,14 +48,20 @@ class Chisel(Base):
             start = self.weighting.start(j)
             end = self.weighting.end(j)
             modes = np.arange(start, end + 1, dtype = 'float')
-            window = self.weighting.window_function(modes,j)**2*(2.0*modes+1.0) * power_spectrum(modes) # /npix_needle
+            _lambda = 4*np.pi/npix_needle # 1/np.sum(self.weighting.window_function(modes,j)* (2.0*modes+1.0)/(4*np.pi))**2 #1/npix_needle
+            window = _lambda * self.weighting.window_function(modes,j)**2 * (2.0*modes+1.0)/(4*np.pi) * power_spectrum(modes)
 
             _sigma[running_index:running_index+npix_needle] = np.sqrt(window.sum())
             running_index += npix_needle
 
+        # Renormalise (Marinucci 2007)
+        l = np.arange(1,self.weighting.lmax)
+        print(np.sum(power_spectrum((2*l+1)/4*np.pi * power_spectrum(l))) / np.sum(_sigma**2))
+        _sigma[1:] *= np.sum(power_spectrum((2*l+1)/4*np.pi * power_spectrum(l))) / np.sum(_sigma[1:]**2)
+
         return _sigma
 
-    def _generate_spherical_basis(self,gsb_file):
+    def _generate_spherical_basis(self,gsb_file, coords=None):
 
         # Import dependencies
         from numba import njit
@@ -79,8 +85,12 @@ class Chisel(Base):
             Y[:] = np.dot(window,legendre[start:end+1])
 
         # Compute locations of pixels
-        npix = self.nside_to_npix(nside)
-        colat, lon = np.array(hp.pix2ang(nside=nside,ipix=np.arange(npix),lonlat=False))
+        if coords is None:
+            npix = self.nside_to_npix(nside)
+            colat, lon = np.array(hp.pix2ang(nside=nside,ipix=np.arange(npix),lonlat=False))
+        else:
+            colat, lon = coords
+            npix = len(colat)
         cos_colat, sin_colat = np.cos(colat), np.sin(colat)
         cos_lon, sin_lon = np.cos(lon), np.sin(lon)
 
@@ -109,7 +119,8 @@ class Chisel(Base):
             start = self.weighting.start(j)
             end = self.weighting.end(j)
             modes = np.arange(start, end + 1, dtype = 'float')
-            window = self.weighting.window_function(modes,j)*(2.0*modes+1.0)/np.sqrt(4.0*np.pi) / self.weighting.needlet_normalisaiton[ineedlet]
+            _lambda = 4*np.pi/npix_needle # 1/np.sum(self.weighting.window_function(modes,j)* (2.0*modes+1.0)/(4*np.pi))**2 # 1/npix_needle
+            window = np.sqrt(_lambda) * self.weighting.window_function(modes,j) * (2.0*modes+1.0)/(4.0*np.pi)
 
             for ipix_needle in tqdm.tqdm(range(npix_needle),file=sys.stdout):
 
@@ -151,12 +162,14 @@ class Chisel(Base):
         wavelet_U = np.zeros(wavelet_v.size, dtype=np.uint64)
         expand_u(wavelet_u, wavelet_U)
 
-        # Save file
-        save_kwargs = {'compression':"lzf", 'chunks':True, 'fletcher32':False, 'shuffle':True}
-        with h5py.File(gsb_file, 'w') as f:
-            f.create_dataset('wavelet_w', data = wavelet_w, dtype = np.float64, **save_kwargs)
-            f.create_dataset('wavelet_v', data = wavelet_v, dtype = np.uint64, scaleoffset=0, **save_kwargs)
-            f.create_dataset('wavelet_u', data = wavelet_u, dtype = np.uint64, scaleoffset=0, **save_kwargs)
-            f.create_dataset('wavelet_U', data = wavelet_U, dtype = np.uint64, scaleoffset=0, **save_kwargs)
-            f.create_dataset('wavelet_n', data = wavelet_n)
-            f.create_dataset('modes', data = wavelet_j, dtype = np.uint64, scaleoffset=0, **save_kwargs)
+        if coords is None:
+            # Save file
+            save_kwargs = {'compression':"lzf", 'chunks':True, 'fletcher32':False, 'shuffle':True}
+            with h5py.File(gsb_file, 'w') as f:
+                f.create_dataset('wavelet_w', data = wavelet_w, dtype = np.float64, **save_kwargs)
+                f.create_dataset('wavelet_v', data = wavelet_v, dtype = np.uint64, scaleoffset=0, **save_kwargs)
+                f.create_dataset('wavelet_u', data = wavelet_u, dtype = np.uint64, scaleoffset=0, **save_kwargs)
+                f.create_dataset('wavelet_U', data = wavelet_U, dtype = np.uint64, scaleoffset=0, **save_kwargs)
+                f.create_dataset('wavelet_n', data = wavelet_n)
+                f.create_dataset('modes', data = wavelet_j, dtype = np.uint64, scaleoffset=0, **save_kwargs)
+        else: return Y

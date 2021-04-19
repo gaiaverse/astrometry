@@ -20,7 +20,7 @@ def fcall(X):
     global tinit
     global lnlike_iter
     global gnorm_iter
-    print(f't={int(time.time()-tinit):05d}, lnL={lnlike_iter:.0f}, gnorm={gnorm_iter:.0f}')
+    print(f't={int(time.time()-tinit):05d}, lnL={lnlike_iter:.0f}, gnorm={gnorm_iter:.0f}, mean={np.mean(X):.1f}, std={np.std(X):.3f}')
 
 def print_log(message, logfile="data/vault/asfe2/logs/default_log.txt"):
 
@@ -58,6 +58,7 @@ class evaluate():
         self.gnorm_iter = 0.
         self.nfev = 0
         self.nfev_print = -100
+        self.lnlike_history = []
 
     def evaluate_likelihood(self, z):
 
@@ -92,6 +93,7 @@ class evaluate():
         self.lnlike_iter = lnL
         self.gnorm_iter = np.sqrt(np.sum(grad**2))/(self.S * self.M_subspace * self.C_subspace)
         self.nfev += 1
+        self.lnlike_history.append(lnL)
 
         return lnL, grad.flatten()
 
@@ -103,11 +105,19 @@ class evaluate():
         with h5py.File(self.savefile, mode) as hf:
             hf.create_dataset(str(self.nfev), data=X)
 
+    def square_minima(self, X):
+        # Still working on this!
+        Li = self.lnlike_history[[-50,-40,-30,-20,-10,0]]
+        M = np.vstack((Li**2, Li, np.ones(len(Li))))
+
+
     def fcall(self, X):
 
-        if self.nfev-self.nfev_print>10:
+        if self.nfev-self.nfev_print>=50:
             self.save_progress(X)
-            print_log(f't={int(time.time()-self.tinit):03d}, n={self.nfev:02d}, lnL={self.lnlike_iter:.0f}, gnorm={self.gnorm_iter:.5f}\n', logfile=self.logfile)
+            if self.nfev>20: fshift = np.abs((self.lnlike_history[-1] - self.lnlike_history[-20])/self.lnlike_history[-1])/20
+            else: fshift = 1.
+            print_log(f't={int(time.time()-self.tinit):03d}, n={self.nfev:02d}, lnL={self.lnlike_iter:.0f}, gnorm={self.gnorm_iter:.5f}, fshift={fshift:.2e}, std={np.std(X):.3f}', logfile=self.logfile)
             self.nfev_print = self.nfev
 
 def evaluate_likelihood(iz):
@@ -203,12 +213,23 @@ class pyChisel(Chisel):
         evaluators = [evaluate(self.P_ray[i], self.S, self.M, self.C, self.M_subspace, self.C_subspace, self.wavelet_args_ray[i], logfile=logfile, savefile=savefile) for i in range(ncores)]
         evaluators[0].nfev=nfev_init
 
+        self.optimum_results_file = self.file_root+'_scipy_results.h5'
+
         with Pool(ncores) as pool:
             icore = np.arange(ncores)
 
             def likelihood(z):
                 evaluations = pool.map(evaluate_likelihood, zip(icore, np.repeat([z,],ncores, axis=0)))
                 lnL, lnL_grad =  evaluators[0].merge_likelihoods(evaluations)
+
+                if evaluations[0]%500==0:
+                    print('Processing...')
+                    self.optimum_lnp = -res['fun']
+                    self.optimum_z = res['x'].reshape((self.S, self.M_subspace, self.C_subspace))
+                    self.optimum_b, self.optimum_x = self._get_bx(self.optimum_z)
+                    if self.nest: self.optimum_x = self._ring_to_nest(np.moveaxis(self.optimum_x, 0, -1))
+                    self.save_h5(time.time()-tstart, 'optimum_lnp_history')
+
                 return -lnL + 0.5*np.sum(z**2), -lnL_grad.flatten() + z
             callback=evaluators[0].fcall
 
@@ -219,15 +240,15 @@ class pyChisel(Chisel):
             print('Running optimizer.')
             res = scipy.optimize.minimize(likelihood, z0.flatten(), method=method, jac=True, bounds=bounds, callback=callback, **scipy_kwargs)
 
+            self.optimum_lnp_history = np.array(evaluators[0].lnlike_history)
+
         print('Processing results.')
         self.optimum_lnp = -res['fun']
         self.optimum_z = res['x'].reshape((self.S, self.M_subspace, self.C_subspace))
         self.optimum_b, self.optimum_x = self._get_bx(self.optimum_z)
         if self.nest: self.optimum_x = self._ring_to_nest(np.moveaxis(self.optimum_x, 0, -1))
 
-        # Save optimum to h5py
-        self.optimum_results_file = self.file_root+'_scipy_results.h5'
-        self.save_h5(time.time()-tstart)
+        self.save_h5(time.time()-tstart, 'optimum_lnp_history')
 
         print_log(str(res), logfile=logfile)
 
