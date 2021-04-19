@@ -48,7 +48,8 @@ class Chisel(Base):
             start = self.weighting.start(j)
             end = self.weighting.end(j)
             modes = np.arange(start, end + 1, dtype = 'float')
-            window = self.weighting.window_function(modes,j)**2*(2.0*modes+1.0) * power_spectrum(modes) # /npix_needle
+            _lambda = 4*np.pi/npix_needle # 1/np.sum(self.weighting.window_function(modes,j)* (2.0*modes+1.0)/(4*np.pi))**2 #1/npix_needle
+            window = _lambda * self.weighting.window_function(modes,j)**2 * (2.0*modes+1.0)/(4*np.pi) * power_spectrum(modes)
 
             _sigma[running_index:running_index+npix_needle] = np.sqrt(window.sum())
             running_index += npix_needle
@@ -113,7 +114,9 @@ class Chisel(Base):
             start = self.weighting.start(j)
             end = self.weighting.end(j)
             modes = np.arange(start, end + 1, dtype = 'float')
-            window = self.weighting.window_function(modes,j)*(2.0*modes+1.0)/np.sqrt(4.0*np.pi) / self.weighting.needlet_normalisaiton[ineedlet]
+            _lambda = 4*np.pi/npix_needle # 1/np.sum(self.weighting.window_function(modes,j)* (2.0*modes+1.0)/(4*np.pi))**2 # 1/npix_needle
+            print('lambda: ', _lambda)
+            window = np.sqrt(_lambda) * self.weighting.window_function(modes,j) * (2.0*modes+1.0)/(4.0*np.pi)
 
             for ipix_needle in tqdm.tqdm(range(npix_needle),file=sys.stdout):
 
