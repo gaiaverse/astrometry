@@ -20,7 +20,7 @@ def fcall(X):
     global tinit
     global lnlike_iter
     global gnorm_iter
-    print(f't={int(time.time()-tinit):05d}, lnL={lnlike_iter:.0f}, gnorm={gnorm_iter:.0f}')
+    print(f't={int(time.time()-tinit):05d}, lnL={lnlike_iter:.0f}, gnorm={gnorm_iter:.0f}, mean={np.mean(X):.1f}, std={np.std(X):.3f}')
 
 def print_log(message, logfile="data/vault/asfe2/logs/default_log.txt"):
 
@@ -93,7 +93,7 @@ class evaluate():
     def fcall(self, X):
 
         self.save_progress(X)
-        print_log(f't={int(time.time()-self.tinit):03d}, n={self.nfev:02d}, lnL={self.lnlike_iter:.0f}, gnorm={self.gnorm_iter:.5f}\n', logfile=self.logfile)
+        print_log(f't={int(time.time()-self.tinit):03d}, n={self.nfev:02d}, lnL={self.lnlike_iter:.0f}, gnorm={self.gnorm_iter:.5f}, std={np.std(X):.3f}', logfile=self.logfile)
 
 def evaluate_likelihood(iz):
     return evaluators[iz[0]].evaluate_likelihood(iz[1])
@@ -180,12 +180,23 @@ class pyChisel(Chisel):
         global evaluators
         evaluators = [evaluate(self.P_ray[i], self.S, self.M, self.C, self.M_subspace, self.C_subspace, self.wavelet_args_ray[i], logfile=logfile, savefile=savefile) for i in range(ncores)]
 
+        self.optimum_results_file = self.file_root+'_scipy_results.h5'
+
         with Pool(ncores) as pool:
             icore = np.arange(ncores)
 
             def likelihood(z):
                 evaluations = pool.map(evaluate_likelihood, zip(icore, np.repeat([z,],ncores, axis=0)))
                 lnL, lnL_grad =  evaluators[0].merge_likelihoods(evaluations)
+
+                if evaluations[0]%500==0:
+                    print('Processing...')
+                    self.optimum_lnp = -res['fun']
+                    self.optimum_z = res['x'].reshape((self.S, self.M_subspace, self.C_subspace))
+                    self.optimum_b, self.optimum_x = self._get_bx(self.optimum_z)
+                    if self.nest: self.optimum_x = self._ring_to_nest(np.moveaxis(self.optimum_x, 0, -1))
+                    self.save_h5(time.time()-tstart)
+
                 return -lnL + 0.5*np.sum(z**2), -lnL_grad.flatten() + z
             callback=evaluators[0].fcall
 
@@ -201,7 +212,6 @@ class pyChisel(Chisel):
         if self.nest: self.optimum_x = self._ring_to_nest(np.moveaxis(self.optimum_x, 0, -1))
 
         # Save optimum to h5py
-        self.optimum_results_file = self.file_root+'_scipy_results.h5'
         self.save_h5(time.time()-tstart)
 
         return res

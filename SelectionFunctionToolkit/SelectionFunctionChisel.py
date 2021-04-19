@@ -54,6 +54,11 @@ class Chisel(Base):
             _sigma[running_index:running_index+npix_needle] = np.sqrt(window.sum())
             running_index += npix_needle
 
+        # Renormalise (Marinucci 2007)
+        l = np.arange(1,self.weighting.lmax)
+        print(np.sum(power_spectrum((2*l+1)/4*np.pi * power_spectrum(l))) / np.sum(_sigma**2))
+        _sigma[1:] *= np.sum(power_spectrum((2*l+1)/4*np.pi * power_spectrum(l))) / np.sum(_sigma[1:]**2)
+
         return _sigma
 
     def _generate_spherical_basis(self,gsb_file, coords=None):
@@ -115,7 +120,6 @@ class Chisel(Base):
             end = self.weighting.end(j)
             modes = np.arange(start, end + 1, dtype = 'float')
             _lambda = 4*np.pi/npix_needle # 1/np.sum(self.weighting.window_function(modes,j)* (2.0*modes+1.0)/(4*np.pi))**2 # 1/npix_needle
-            print('lambda: ', _lambda)
             window = np.sqrt(_lambda) * self.weighting.window_function(modes,j) * (2.0*modes+1.0)/(4.0*np.pi)
 
             for ipix_needle in tqdm.tqdm(range(npix_needle),file=sys.stdout):
