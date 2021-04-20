@@ -18,8 +18,9 @@ eps=1e-10
 
 if True:
     #M = 85; Mlims = [1.7,23.1]; C = 1; Clims = [-100,100]; nside=64; jmax=5; B=2.
-    M = 21; Mlims = [2,23]; C = 1; Clims = [-100,100]; nside=32; jmax=4; B=2.
-    ncores=20
+    M = 214; Mlims = [1.7,23.1]; C = 1; Clims = [-100,100]; nside=32; jmax=4; B=2.
+    #M = 21; Mlims = [2,23]; C = 1; Clims = [-100,100]; nside=16; jmax=3; B=2.
+    ncores=40
 
 if False:
     nside=64;
@@ -72,7 +73,7 @@ lengthscale_c = lengthscale/((C_bins[1]-C_bins[0])*(C_original/C))
 print(f"lengthscales m:{lengthscale_m} , c:{lengthscale_c}")
 
 
-file_root = f"chisquare_jmax{jmax}_nside{nside}_M{M}_C{C}_l{lengthscale}_B{B}_ncores{ncores}mp_lbfgsb"
+file_root = f"chisquare_{sample}_jmax{jmax}_nside{nside}_M{M}_C{C}_l{lengthscale}_B{B}_ncores{ncores}mp_lbfgsb"
 print(file_root)
 basis_options = {'needlet':'chisquare', 'j':jmax, 'B':B, 'p':1.0, 'wavelet_tol':1e-2}
 
@@ -102,7 +103,7 @@ if True:
     #z0 = np.random.rand(pychisel.S, pychisel.M, pychisel.C)-0.5
 
     if True:
-        z0 = np.random.normal(0, 1, size=(pychisel.S, pychisel.M, pychisel.C)).flatten()
+        z0 = np.random.normal(0, 1, size=(pychisel.S, pychisel.M_subspace, pychisel.C_subspace)).flatten()
         last_iteration=0
         force=False
     else:
@@ -121,7 +122,7 @@ if True:
     # print(f'x_tol = {x_tol:.0e}')
     # res = pychisel.minimize_mp(z0, ncores=ncores, method='Newton-CG', force=False, nfev_init=0, options={'disp':True, 'maxiter':50, 'xtol':x_tol})
 
-    f_tol = 1e-8
+    f_tol = 1e-10
     print(f'f_tol = {f_tol:.0e}')
     bounds=np.zeros((len(z0.flatten()), 2)); bounds[:,0]=-50; bounds[:,1]=50
     res = pychisel.minimize_mp(z0, ncores=ncores, bounds=bounds, method='L-BFGS-B', force=force, nfev_init=last_iteration, options={'disp':False, 'maxiter':20000, 'ftol':f_tol, 'gtol':1})

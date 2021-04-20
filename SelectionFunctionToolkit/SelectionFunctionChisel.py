@@ -56,8 +56,9 @@ class Chisel(Base):
 
         # Renormalise (Marinucci 2007)
         l = np.arange(1,self.weighting.lmax)
-        print(np.sum(power_spectrum((2*l+1)/4*np.pi * power_spectrum(l))) / np.sum(_sigma**2))
+        #print(np.sum(power_spectrum((2*l+1)/4*np.pi * power_spectrum(l))) / np.sum(_sigma**2))
         _sigma[1:] *= np.sum(power_spectrum((2*l+1)/4*np.pi * power_spectrum(l))) / np.sum(_sigma[1:]**2)
+        print(_sigma)
 
         return _sigma
 

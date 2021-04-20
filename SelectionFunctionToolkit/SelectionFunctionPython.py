@@ -54,11 +54,18 @@ class evaluate():
         self.lnL_grad = np.zeros((self.S, self.M_subspace, self.C_subspace))
 
         self.tinit = time.time()
+        self.fshift = 1.
         self.lnlike_iter = 0.
         self.gnorm_iter = 0.
         self.nfev = 0
         self.nfev_print = -100
         self.lnlike_history = []
+        self.zshift_history = []
+        self.lnlike_smhistory = []
+        self.save_threshold = 1e-4
+        self.z_prev = np.zeros((self.S,self.M_subspace,self.C_subspace))
+        self.F0 = 1.
+        self.gof = 1.
 
     def evaluate_likelihood(self, z):
 
@@ -106,19 +113,34 @@ class evaluate():
             hf.create_dataset(str(self.nfev), data=X)
 
     def square_minima(self, X):
-        # Still working on this!
-        Li = self.lnlike_history[[-50,-40,-30,-20,-10,0]]
-        M = np.vstack((Li**2, Li, np.ones(len(Li))))
 
+        x = np.cumsum(self.zshift_history[-6:][::-1])[::-1]
+        y = np.array(self.lnlike_smhistory[-6:])
+
+        M = np.vstack((x**2, x, np.ones(len(x))))
+        coeffs = np.linalg.inv(M @ M.T) @ (M @ y)
+
+        self.var = -1/(2*coeffs[0])
+        self.mu = -coeffs[1]/(2*coeffs[0])
+        self.F0 = coeffs[2] + self.mu**2 / (2*self.var)
+        self.gof = (x[-1]-self.mu)**2/self.var
 
     def fcall(self, X):
 
         if self.nfev-self.nfev_print>=50:
             self.save_progress(X)
-            if self.nfev>20: fshift = np.abs((self.lnlike_history[-1] - self.lnlike_history[-20])/self.lnlike_history[-1])/20
-            else: fshift = 1.
-            print_log(f't={int(time.time()-self.tinit):03d}, n={self.nfev:02d}, lnL={self.lnlike_iter:.0f}, gnorm={self.gnorm_iter:.5f}, fshift={fshift:.2e}, std={np.std(X):.3f}', logfile=self.logfile)
+            if self.nfev>20:
+                self.fshift = np.abs((self.lnlike_history[-1] - self.lnlike_history[-20])/self.lnlike_history[-1])/20
+                self.zshift_history.append(np.sqrt(np.sum((X-self.z_prev)**2)))
+                self.lnlike_smhistory.append(self.lnlike_iter)
+                if len(self.zshift_history)>3: self.square_minima(X)
+
+            print_log(f't={int(time.time()-self.tinit):03d}, n={self.nfev:02d}, lnL={self.lnlike_iter:.0f}, gnorm={self.gnorm_iter:.5f}, fshift={self.fshift:.2e}, std={np.std(X):.3f}, F0={self.F0:.0f}, gof:{self.gof:.2f}', logfile=self.logfile)
+
             self.nfev_print = self.nfev
+
+            self.z_prev=X.copy()
+            self.lnL_prev=self.lnlike_iter
 
 def evaluate_likelihood(iz):
     return evaluators[iz[0]].evaluate_likelihood(iz[1])
@@ -219,16 +241,20 @@ class pyChisel(Chisel):
             icore = np.arange(ncores)
 
             def likelihood(z):
+                evaluators[0].z = z
                 evaluations = pool.map(evaluate_likelihood, zip(icore, np.repeat([z,],ncores, axis=0)))
                 lnL, lnL_grad =  evaluators[0].merge_likelihoods(evaluations)
 
-                if evaluations[0]%500==0:
+                if evaluators[0].fshift<evaluators[0].save_threshold:
+                    evaluators[0].save_threshold *= 0.1
                     print('Processing...')
-                    self.optimum_lnp = -res['fun']
-                    self.optimum_z = res['x'].reshape((self.S, self.M_subspace, self.C_subspace))
+                    self.optimum_lnp = lnL - 0.5*np.sum(z**2)
+                    self.optimum_lnp_history = np.array(evaluators[0].lnlike_history)
+                    self.optimum_z = z.reshape((self.S, self.M_subspace, self.C_subspace))
                     self.optimum_b, self.optimum_x = self._get_bx(self.optimum_z)
                     if self.nest: self.optimum_x = self._ring_to_nest(np.moveaxis(self.optimum_x, 0, -1))
                     self.save_h5(time.time()-tstart, 'optimum_lnp_history')
+
 
                 return -lnL + 0.5*np.sum(z**2), -lnL_grad.flatten() + z
             callback=evaluators[0].fcall
