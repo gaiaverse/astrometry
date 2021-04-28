@@ -25,21 +25,21 @@ class Chisel(Base):
 
         if self.needlet == 'chisquare':
             from SelectionFunctionUtils import chisquare
-            self.weighting = chisquare(self.j, p = self.p, B = self.B)
+            self.weighting = chisquare(self.j, p = self.p, B = self.B, normalise=True)
         else:
             from SelectionFunctionUtils import littlewoodpaley
             self.weighting = littlewoodpaley(B = self.B)
 
     def _process_sigma_basis_specific(self,sigma):
         assert len(sigma) == 2
-        power_spectrum = lambda l: np.power(1.0+l,sigma[1])
+        power_spectrum = lambda l: np.exp(sigma[0]) * np.power(1.0+l,sigma[1])
 
         _sigma = np.zeros(self.S)
         running_index = 0
         for j in self.j:
 
             if j == -1:
-                _sigma[running_index] = 1.0
+                _sigma[running_index] = np.exp(sigma[0])
                 running_index += 1
                 continue
 
@@ -54,11 +54,11 @@ class Chisel(Base):
             _sigma[running_index:running_index+npix_needle] = np.sqrt(window.sum())
             running_index += npix_needle
 
-        # Renormalise (Marinucci 2007)
-        l = np.arange(1,self.weighting.lmax)
+        # Renormalise (Marinucci 2008)
+        #l = np.arange(1,self.weighting.lmax)
         #print(np.sum(power_spectrum((2*l+1)/4*np.pi * power_spectrum(l))) / np.sum(_sigma**2))
-        _sigma[1:] *= np.sum(power_spectrum((2*l+1)/4*np.pi * power_spectrum(l))) / np.sum(_sigma[1:]**2)
-        print(_sigma)
+        #print(np.sum(power_spectrum((2*l+1)/4*np.pi * power_spectrum(l))) / np.sum(_sigma[1:]**2))
+        #_sigma[0] = 6.9
 
         return _sigma
 

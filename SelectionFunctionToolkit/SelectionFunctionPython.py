@@ -22,20 +22,20 @@ def fcall(X):
     global gnorm_iter
     print(f't={int(time.time()-tinit):05d}, lnL={lnlike_iter:.0f}, gnorm={gnorm_iter:.0f}, mean={np.mean(X):.1f}, std={np.std(X):.3f}')
 
-def print_log(message, logfile="data/vault/asfe2/logs/default_log.txt"):
+def print_log(message, logfile="/data/vault/asfe2/logs/default_log.txt"):
 
     if os.path.exists(logfile): mode='a'
     else: mode='w'
 
     with open(logfile, mode) as f:
-        f.write(message)
+        f.write(message+'\n')
     print(message)
 
 
 #@ray.remote
 class evaluate():
 
-    def __init__(self, P, S, M, C, M_subspace, C_subspace, wavelet_args,
+    def __init__(self, P, S, M, C, M_subspace, C_subspace, wavelet_args, j=[-1],
                        logfile='/data/asfe2/Projects/astrometry/PyOutput/log.txt',
                        savefile='/data/asfe2/Projects/astrometry/PyOutput/progress.h'):
 
@@ -46,6 +46,8 @@ class evaluate():
         self.M_subspace=M_subspace
         self.C_subspace=C_subspace
         self.wavelet_args=wavelet_args
+
+        self.j=j
 
         self.logfile=logfile
         self.savefile=savefile
@@ -135,7 +137,14 @@ class evaluate():
                 self.lnlike_smhistory.append(self.lnlike_iter)
                 if len(self.zshift_history)>3: self.square_minima(X)
 
-            print_log(f't={int(time.time()-self.tinit):03d}, n={self.nfev:02d}, lnL={self.lnlike_iter:.0f}, gnorm={self.gnorm_iter:.5f}, fshift={self.fshift:.2e}, std={np.std(X):.3f}, F0={self.F0:.0f}, gof:{self.gof:.2f}', logfile=self.logfile)
+            i=0; std_str=""
+            for j in self.j:
+                if j==-1: std_str+=f"_{np.std(X.reshape(self.S, self.M_subspace, self.C_subspace)[i]):.2f}"
+                else: std_str+=f"_{np.std(X.reshape(self.S, self.M_subspace, self.C_subspace)[i:int(i+hp.nside2npix(pow(2,j))+0.1)]):.2f}"
+                i+=int(hp.nside2npix(pow(2,j))+0.1)
+
+            print_log(f't={int(time.time()-self.tinit):03d}, n={self.nfev:02d}, lnL={self.lnlike_iter:.0f}, gnorm={self.gnorm_iter:.5f}, fshift={self.fshift:.2e}, std={np.std(X):.3f}{std_str}', logfile=self.logfile)
+            #", F0={self.F0:.0f}, gof:{self.gof:.2f}', logfile=self.logfile)
 
             self.nfev_print = self.nfev
 
@@ -178,7 +187,9 @@ class pyChisel(Chisel):
             print('Initialising ray processes.')
             ray.shutdown()
             ray.init()
-            evaluators = [evaluate.remote(self.P_ray[i], self.S, self.M, self.C, self.M_subspace, self.C_subspace, self.wavelet_args_ray[i], logfile=logfile, savefile=savefile) for i in range(ncores)]
+            evaluators = [evaluate.remote(self.P_ray[i], self.S, self.M, self.C,
+                                          self.M_subspace, self.C_subspace, self.wavelet_args_ray[i],
+                                          logfile=logfile, savefile=savefile) for i in range(ncores)]
             def likelihood(z):
                 evaluations = [e.evaluate_likelihood.remote(z) for e in evaluators]
                 combination = evaluators[0].merge_likelihoods.remote(ray.get(evaluations))
@@ -221,6 +232,10 @@ class pyChisel(Chisel):
         tstart = time.time()
         from multiprocessing import Pool
 
+        #print('Sigma: ', self.stan_input['sigma'][0], self.stan_input['sigma'][np.cumsum(12 * (2**np.array(self.j[1:]))**2)[:-1] - 1])
+        sigma = np.unique(self.stan_input['sigma'], return_index=True)
+        print('Sigma: ', sigma[0][np.argsort(sigma[1])])
+
         logfile = '/data/asfe2/Projects/astrometry/PyOutput/'+self.file_root+'_log.txt'
         savefile = '/data/asfe2/Projects/astrometry/PyOutput/'+self.file_root+'_progress.h'
         if os.path.exists(savefile):
@@ -232,7 +247,7 @@ class pyChisel(Chisel):
 
         print('Initialising multiprocessing processes.')
         global evaluators
-        evaluators = [evaluate(self.P_ray[i], self.S, self.M, self.C, self.M_subspace, self.C_subspace, self.wavelet_args_ray[i], logfile=logfile, savefile=savefile) for i in range(ncores)]
+        evaluators = [evaluate(self.P_ray[i], self.S, self.M, self.C, self.M_subspace, self.C_subspace, self.wavelet_args_ray[i], j=self.j, logfile=logfile, savefile=savefile) for i in range(ncores)]
         evaluators[0].nfev=nfev_init
 
         self.optimum_results_file = self.file_root+'_scipy_results.h5'

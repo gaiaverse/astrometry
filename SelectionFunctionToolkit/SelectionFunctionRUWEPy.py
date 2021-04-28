@@ -9,7 +9,7 @@ import h5py, numpy as np, scipy.stats, healpy as hp, tqdm
 eps=1e-10
 
 ncores=80
-M = 61; Mlims = [5.,17.2]; C = 4; Clims = [-1,3];
+M = 85; Mlims = [5.,22.]; C = 4; Clims = [-1,7];
 nside=32; jmax=4; B=2.
 
 colour=True
@@ -23,7 +23,7 @@ data_C=int((Clims[1]-Clims[0])/col_res + eps);
 data_nside = pow(2,7)
 data_res=(data_M, data_C, hp.nside2npix(data_nside))
 print('data_res: ', data_res)
-sample="rvs"; file="Gres10CRres2hpx7"
+sample="ruwe1p4"; file="Gres10CRres2hpx7"
 box={};
 with h5py.File(f'/data/asfe2/Projects/astrometry/gaiaedr3_{sample}_kncounts_{file}.h', 'r') as hf:
     box['n'] = np.zeros(data_res, dtype=np.int64)
@@ -38,8 +38,7 @@ with h5py.File(f'/data/asfe2/Projects/astrometry/gaiaedr3_{sample}_kncounts_{fil
         box[key][Midx[in_range], Cidx[in_range], Pidx[in_range]] = hf[key][...][in_range]
 print(box['n'].shape)
 
-
-length_m = 0.3; length_c = 1.5
+length_m = 0.3; length_c = 3.
 # Calculate lengthscales in units of bins
 M_original, C_original = box['k'].shape[:2]
 lengthscale_m = length_m/((M_bins[1]-M_bins[0])*(M_original/M))
@@ -64,12 +63,13 @@ pychisel = pyChisel(box['k'], box['n'],
                 sparse = True,
                 pivot = True,
                 mu = 0.0,
-                sigma = [-0.0755305 , -2.24756519],
+                sigma = [-0.21051177, -2.48372204],
                 Mlim = [M_bins[0], M_bins[-1]],
                 Clim = [C_bins[0], C_bins[-1]],
                 spherical_basis_directory='/data/asfe2/Projects/astrometry/SphericalWavelets/',
                 stan_output_directory='/data/asfe2/Projects/astrometry/PyOutput/'
                 )
+print('j: ', pychisel.j)
 if True:
     z0 = np.random.normal(0, 1, size=(pychisel.S, pychisel.M_subspace, pychisel.C_subspace)).flatten()
     last_iteration=0

@@ -18,9 +18,13 @@ eps=1e-10
 
 if True:
     #M = 85; Mlims = [1.7,23.1]; C = 1; Clims = [-100,100]; nside=64; jmax=5; B=2.
-    M = 214; Mlims = [1.7,23.1]; C = 1; Clims = [-100,100]; nside=32; jmax=4; B=2.
-    #M = 21; Mlims = [2,23]; C = 1; Clims = [-100,100]; nside=16; jmax=3; B=2.
-    ncores=40
+    M = 214; Mlims = [1.7,23.1]; C = 1; Clims = [-100,100]; nside=16; jmax=0; B=2.
+    #M = 21; Mlims = [2,23]; C = 1; Clims = [-100,100]; nside=16; jmax=-1; B=2.
+    #M = 214; Mlims = [1.7,23.1]; C = 1; Clims = [-100,100]; nside=32; jmax=0; B=2.
+    M = 170; Mlims = [5,22]; C = 1; Clims = [-100,100]; nside=16; j=[-1,3]; B=2.
+    ncores=50
+
+    M = 85; Mlims = [5,22]; C = 1; Clims = [-100,100]; nside=32; jmax=4; B=2.
 
 if False:
     nside=64;
@@ -74,8 +78,9 @@ print(f"lengthscales m:{lengthscale_m} , c:{lengthscale_c}")
 
 
 file_root = f"chisquare_{sample}_jmax{jmax}_nside{nside}_M{M}_C{C}_l{lengthscale}_B{B}_ncores{ncores}mp_lbfgsb"
+#file_root = f"chisquare_{sample}_j{str(j).replace(', ','-').replace('[','').replace(']','')}_nside{nside}_M{M}_C{C}_l{lengthscale}_B{B}_ncores{ncores}mp_lbfgsb"
 print(file_root)
-basis_options = {'needlet':'chisquare', 'j':jmax, 'B':B, 'p':1.0, 'wavelet_tol':1e-2}
+basis_options = {'needlet':'chisquare', 'j':j, 'B':B, 'p':1.0, 'wavelet_tol':1e-2}
 
 # Import chisel
 from SelectionFunctionPython import pyChisel
@@ -91,12 +96,13 @@ pychisel = pyChisel(box['k'], box['n'],
                 sparse = True,
                 pivot = True,
                 mu = 0.0,
-                sigma = [-0.81489922, -2.516],
+                sigma = [-0.67227718, -2.35088459]
                 Mlim = [M_bins[0], M_bins[-1]],
                 Clim = [C_bins[0], C_bins[-1]],
                 spherical_basis_directory='/data/asfe2/Projects/astrometry/SphericalWavelets/',
                 stan_output_directory='/data/asfe2/Projects/astrometry/PyOutput/'
                 )
+print('Window norm: ', pychisel.weighting.j, pychisel.weighting.normalisation)
 
 if True:
 
@@ -125,7 +131,8 @@ if True:
     f_tol = 1e-10
     print(f'f_tol = {f_tol:.0e}')
     bounds=np.zeros((len(z0.flatten()), 2)); bounds[:,0]=-50; bounds[:,1]=50
-    res = pychisel.minimize_mp(z0, ncores=ncores, bounds=bounds, method='L-BFGS-B', force=force, nfev_init=last_iteration, options={'disp':False, 'maxiter':20000, 'ftol':f_tol, 'gtol':1})
+    res = pychisel.minimize_mp(z0, ncores=ncores, bounds=bounds, method='L-BFGS-B', force=force, nfev_init=last_iteration,
+                                options={'disp':False, 'maxiter':30000, 'maxfun':30000, 'ftol':f_tol, 'gtol':1})
 
     #res = pychisel.minimize_ray(z0, ncores=ncores, method='Newton-CG', options={'disp':True, 'maxiter':50, 'xtol':1e-5})
     #res = pychisel.minimize(z0, method='Newton-CG', options={'disp':True, 'maxiter':50, 'xtol':1e-5})

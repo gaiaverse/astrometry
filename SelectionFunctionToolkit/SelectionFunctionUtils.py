@@ -107,7 +107,8 @@ class chisquare:
         self.normalisation = np.ones(self.lmax+1)
 
         if self.normalise == True:
-            jinf = np.arange(1,200)
+            # Renormalise (Marinucci 2008) Equation 2
+            jinf = np.arange(1000)
             for l in range(1,self.lmax+1):
                 self.normalisation[l] = 1.0/np.sum(np.square(self.window_function(l,jinf)))
 
