@@ -39,7 +39,7 @@ with h5py.File(f'/data/asfe2/Projects/astrometry/gaiaedr3_{sample}_kncounts_{fil
 print(box['n'].shape)
 
 
-length_m = 0.3; length_c = 1.5
+length_m = 0.3; length_c = 300
 # Calculate lengthscales in units of bins
 M_original, C_original = box['k'].shape[:2]
 lengthscale_m = length_m/((M_bins[1]-M_bins[0])*(M_original/M))
@@ -70,6 +70,8 @@ pychisel = pyChisel(box['k'], box['n'],
                 spherical_basis_directory='/data/asfe2/Projects/astrometry/SphericalWavelets/',
                 stan_output_directory='/data/asfe2/Projects/astrometry/PyOutput/'
                 )
+print('j', pychisel.j)
+
 if True:
     z0 = np.random.normal(0, 1, size=(pychisel.S, pychisel.M_subspace, pychisel.C_subspace)).flatten()
     last_iteration=0

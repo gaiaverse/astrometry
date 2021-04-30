@@ -22,8 +22,7 @@ if True:
     #M = 21; Mlims = [2,23]; C = 1; Clims = [-100,100]; nside=16; jmax=-1; B=2.
     #M = 214; Mlims = [1.7,23.1]; C = 1; Clims = [-100,100]; nside=32; jmax=0; B=2.
     M = 170; Mlims = [5,22]; C = 1; Clims = [-100,100]; nside=16; j=[-1,3]; B=2.
-    ncores=50
-
+    ncores=80
     M = 85; Mlims = [5,22]; C = 1; Clims = [-100,100]; nside=32; jmax=4; B=2.
 
 if False:
@@ -69,18 +68,17 @@ with h5py.File(f'/data/asfe2/Projects/astrometry/gaiaedr3_{sample}_kncounts_{fil
 print(box['n'].shape)
 
 
-lengthscale = 0.3
+length_m = 0.3; length_c = 1.5
 # Calculate lengthscales in units of bins
 M_original, C_original = box['k'].shape[:2]
-lengthscale_m = lengthscale/((M_bins[1]-M_bins[0])*(M_original/M))
-lengthscale_c = lengthscale/((C_bins[1]-C_bins[0])*(C_original/C))
+lengthscale_m = length_m/((M_bins[1]-M_bins[0])*(M_original/M))
+lengthscale_c = length_c/((C_bins[1]-C_bins[0])*(C_original/C))
 print(f"lengthscales m:{lengthscale_m} , c:{lengthscale_c}")
 
-
-file_root = f"chisquare_{sample}_jmax{jmax}_nside{nside}_M{M}_C{C}_l{lengthscale}_B{B}_ncores{ncores}mp_lbfgsb"
+file_root = f"chisquare_{sample}_jmax{jmax}_nside{nside}_M{M}_CGR{C}_lm{length_m}_B{B}_ncores{ncores}"
 #file_root = f"chisquare_{sample}_j{str(j).replace(', ','-').replace('[','').replace(']','')}_nside{nside}_M{M}_C{C}_l{lengthscale}_B{B}_ncores{ncores}mp_lbfgsb"
 print(file_root)
-basis_options = {'needlet':'chisquare', 'j':j, 'B':B, 'p':1.0, 'wavelet_tol':1e-2}
+basis_options = {'needlet':'chisquare', 'j':jmax, 'B':B, 'p':1.0, 'wavelet_tol':1e-2}
 
 # Import chisel
 from SelectionFunctionPython import pyChisel
@@ -96,7 +94,7 @@ pychisel = pyChisel(box['k'], box['n'],
                 sparse = True,
                 pivot = True,
                 mu = 0.0,
-                sigma = [-0.67227718, -2.35088459]
+                sigma = [-0.67227718, -2.35088459],
                 Mlim = [M_bins[0], M_bins[-1]],
                 Clim = [C_bins[0], C_bins[-1]],
                 spherical_basis_directory='/data/asfe2/Projects/astrometry/SphericalWavelets/',
