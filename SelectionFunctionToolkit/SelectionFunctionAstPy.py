@@ -42,10 +42,10 @@ if False:
 
 colour=False
 mag_res = 0.1;
-M_bins = np.arange(Mlims[0], Mlims[1], mag_res)
+M_bins = np.arange(Mlims[0], Mlims[1]+eps, mag_res)
 
 col_res = 199;
-C_bins = np.arange(Clims[0], Clims[1], col_res)
+C_bins = np.arange(Clims[0], Clims[1]+eps, col_res)
 
 data_M=int((Mlims[1]-Mlims[0])/mag_res + eps);
 data_C=int((Clims[1]-Clims[0])/col_res + eps);

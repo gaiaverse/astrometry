@@ -54,7 +54,7 @@ class Base:
         self._process_sigma(sigma)
 
         # Load Stan Model
-        self._load_stan_model()
+        # self._load_stan_model()
 
         # Construct Stan Input
         self._construct_stan_input()
